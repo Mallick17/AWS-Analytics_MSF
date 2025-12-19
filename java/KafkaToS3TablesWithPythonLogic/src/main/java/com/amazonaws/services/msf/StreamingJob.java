@@ -56,7 +56,7 @@ public class StreamingJob {
         put("kafka.offset", "earliest");
         
         // S3 Tables Configuration
-        put("s3.warehouse", "arn:aws:s3tables:ap-south-1:149815625933:bucket/flink-transform-sink");
+        put("s3.warehouse", "arn:aws:s3tables:ap-south-1:149815625933:bucket/testing-python-flink-table-bucket");
         put("table.namespace", "sink");
         
         // Python FastAPI Configuration
