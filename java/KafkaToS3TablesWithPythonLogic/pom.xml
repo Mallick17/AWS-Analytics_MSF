@@ -19,9 +19,24 @@
         <kda.connectors.version>4.0.0</kda.connectors.version>
         <kda.runtime.version>1.2.0</kda.runtime.version>
         <log4j.version>2.17.1</log4j.version>
+        <iceberg.version>1.6.1</iceberg.version>
+        <awssdk.version>2.20.0</awssdk.version>
         <maven.compiler.source>${target.java.version}</maven.compiler.source>
         <maven.compiler.target>${target.java.version}</maven.compiler.target>
     </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <!-- AWS SDK v2 BOM for modular management -->
+            <dependency>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>bom</artifactId>
+                <version>${awssdk.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <repositories>
         <repository>
@@ -49,14 +64,14 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- Flink Table API bridge (required for RowData, GenericRowData, StringData) -->
+        <!-- Flink Table API bridge -->
         <dependency>
             <groupId>org.apache.flink</groupId>
             <artifactId>flink-table-api-java-bridge</artifactId>
             <version>${flink.version}</version>
         </dependency>
 
-        <!-- Kafka Connector (updated for Flink 1.19 compatibility) -->
+        <!-- Kafka Connector -->
         <dependency>
             <groupId>org.apache.flink</groupId>
             <artifactId>flink-connector-kafka</artifactId>
@@ -70,51 +85,41 @@
             <version>2.1.1</version>
         </dependency>
 
-        <!-- Iceberg (updated to latest compatible with Flink 1.19) -->
+        <!-- Iceberg Flink Runtime -->
         <dependency>
             <groupId>org.apache.iceberg</groupId>
             <artifactId>iceberg-flink-runtime-1.19</artifactId>
-            <version>1.6.1</version>
+            <version>${iceberg.version}</version>
         </dependency>
 
-        <!-- S3 Tables Catalog -->
+        <!-- Iceberg AWS Bundle (v2 SDK for S3/Glue, replaces Hadoop + v1 bundle) -->
+        <dependency>
+            <groupId>org.apache.iceberg</groupId>
+            <artifactId>iceberg-aws-bundle</artifactId>
+            <version>${iceberg.version}</version>
+        </dependency>
+
+        <!-- S3 Tables Catalog for Iceberg -->
         <dependency>
             <groupId>software.amazon.s3tables</groupId>
             <artifactId>s3-tables-catalog-for-iceberg-runtime</artifactId>
             <version>0.1.5</version>
         </dependency>
 
-        <!-- Hadoop dependencies for Iceberg/S3 access -->
+        <!-- AWS SDK v2: S3 Client (pulled by bundle/catalog, explicit for clarity) -->
         <dependency>
-            <groupId>org.apache.hadoop</groupId>
-            <artifactId>hadoop-common</artifactId>
-            <version>3.3.6</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.slf4j</groupId>
-                    <artifactId>slf4j-log4j12</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.hadoop</groupId>
-            <artifactId>hadoop-aws</artifactId>
-            <version>3.3.6</version>
-        </dependency>
-        <dependency>
-            <groupId>com.amazonaws</groupId>
-            <artifactId>aws-java-sdk-bundle</artifactId>
-            <version>1.12.767</version>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>s3</artifactId>
         </dependency>
 
-        <!-- AWS SDK for HTTP calls to FastAPI -->
+        <!-- AWS SDK v2: Apache HTTP Client (already in your POM) -->
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>apache-client</artifactId>
-            <version>2.20.0</version>
+            <version>${awssdk.version}</version>
         </dependency>
 
-        <!-- HTTP Client for calling Python API -->
+        <!-- HTTP Client for Python API -->
         <dependency>
             <groupId>org.apache.httpcomponents.client5</groupId>
             <artifactId>httpclient5</artifactId>
@@ -184,6 +189,12 @@
                         <configuration>
                             <artifactSet>
                                 <excludes>
+                                    <!-- Exclude provided Flink deps -->
+                                    <exclude>org.apache.flink:flink-*</exclude>
+                                    <!-- Exclude test deps -->
+                                    <exclude>*:junit</exclude>
+                                    <exclude>*:testng</exclude>
+                                    <!-- Exclude signatures -->
                                     <exclude>com.google.code.findbugs:jsr305</exclude>
                                     <exclude>org.slf4j:*</exclude>
                                     <exclude>log4j:*</exclude>
@@ -196,6 +207,8 @@
                                         <exclude>META-INF/*.SF</exclude>
                                         <exclude>META-INF/*.DSA</exclude>
                                         <exclude>META-INF/*.RSA</exclude>
+                                        <!-- Exclude unused AWS v1 remnants if any -->
+                                        <exclude>META-INF/services/com.amazonaws.services.*</exclude>
                                     </excludes>
                                 </filter>
                             </filters>
