@@ -1,0 +1,27 @@
+[
+  {
+    "PropertyGroupId": "kinesis.analytics.flink.run.options",
+    "PropertyMap": {
+      "python.entrypoint": "main.py",
+      "python.files": "main.py",
+      "jarfile": "lib/pyflink-dependencies.jar"
+    }
+  },
+  {
+    "PropertyGroupId": "kinesis.analytics.flink.env",
+    "PropertyMap": {
+      "pipeline.jars": "lib/pyflink-dependencies.jar"
+    }
+  },
+  {
+    "PropertyGroupId": "IcebergTable0",
+    "PropertyMap": {
+      "catalog.name": "s3tables_catalog",
+      "warehouse.path": "arn:aws:s3tables:ap-south-1:149815625933:bucket/testing-poc-flink-table-bucket",
+      "database.name": "pocflink",
+      "table.name": "ride_events",
+      "aws.region": "ap-south-1",
+      "client.region": "ap-south-1"
+    }
+  }
+]

@@ -1,0 +1,53 @@
+name: Check for Exposed ARNs
+
+on:
+  pull_request:
+
+jobs:
+  check-arns:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Check for exposed ARNs
+        run: |
+          # Find files containing ARN patterns with actual account IDs
+          # Exclude .git directory, markdown files, and this workflow file itself
+          # Allow test account ID 123456789012 in test resource directories
+          
+          exposed_arns_found=false
+          
+          # Check all files except excluded ones
+          while IFS= read -r -d '' file; do
+            # Skip if file is in src/test/resources directory
+            if [[ "$file" == *"/src/test/resources/"* ]]; then
+              # In test resources, only flag ARNs that are NOT using the test account ID
+              # First find all ARNs, then filter out the test account ID
+              if grep -E 'arn:aws:[^:]+:[^:]+:[0-9]{12}:' "$file" | grep -v '123456789012' | grep -q .; then
+                echo "ERROR: Found non-test ARN in test resources file: $file"
+                echo "Non-test ARNs found:"
+                grep -n -E 'arn:aws:[^:]+:[^:]+:[0-9]{12}:' "$file" | grep -v '123456789012'
+                exposed_arns_found=true
+              fi
+            else
+              # In non-test files, flag any ARN with any account ID
+              if grep -q -E 'arn:aws:[^:]+:[^:]+:[0-9]{12}:' "$file"; then
+                echo "ERROR: Found unsanitized ARN in file: $file"
+                grep -n -E 'arn:aws:[^:]+:[^:]+:[0-9]{12}:' "$file"
+                exposed_arns_found=true
+              fi
+            fi
+          done < <(find . -type f \
+            -not -path "./.git/*" \
+            -not -name "*.md" \
+            -not -path "./.github/workflows/check-arns.yml" \
+            -print0)
+          
+          if [ "$exposed_arns_found" = true ]; then
+            echo ""
+            echo "Please replace account IDs with a placeholder such as <account-id>"
+            echo "Note: Test account ID 123456789012 is allowed in src/test/resources directories"
+            exit 1
+          fi
+          
+          echo "All files checked - no exposed ARNs found (test account ID 123456789012 allowed in test resources)"

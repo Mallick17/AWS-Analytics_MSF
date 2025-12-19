@@ -1,0 +1,16 @@
+[
+  {
+    "PropertyGroupId": "kinesis.analytics.flink.run.options",
+    "PropertyMap": {
+      "python": "main.py",
+      "jarfile": "lib/pyflink-dependencies.jar"
+    }
+  },
+  {
+    "PropertyGroupId": "OutputDeliveryStream0",
+    "PropertyMap": {
+      "stream.name": "ExampleOutputFirehoseDeliveryStream",
+      "aws.region": "us-east-1"
+    }
+  }
+]

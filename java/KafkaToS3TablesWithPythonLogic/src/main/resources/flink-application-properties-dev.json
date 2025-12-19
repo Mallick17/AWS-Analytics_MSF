@@ -1,0 +1,19 @@
+[
+  {
+    "PropertyGroupId": "ApplicationProperties",
+    "PropertyMap": {
+      "kafka.bootstrap.servers": "localhost:9092",
+      "kafka.topics": "user_events",
+      "kafka.consumer.group": "flink-local",
+      "kafka.offset": "earliest",
+      "s3.warehouse": "arn:aws:s3tables:ap-south-1:YOUR_ACCOUNT:bucket/YOUR_BUCKET",
+      "table.namespace": "sink",
+      "python.api.url": "http://localhost:8000/process",
+      "python.api.timeout.ms": "5000",
+      "python.api.retry.attempts": "3",
+      "python.logic.enabled": "true",
+      "parallelism": "1",
+      "checkpoint.interval": "60000"
+    }
+  }
+]

@@ -1,0 +1,21 @@
+[
+  {
+    "PropertyGroupId": "DataGen",
+    "PropertyMap": {
+      "records.per.sec": 100.0
+    }
+  },
+  {
+    "PropertyGroupId": "Iceberg",
+    "PropertyMap": {
+
+      "table.bucket.arn": "<your-table-arn>",
+      "catalog.db": "default",
+      "catalog.table": "prices_s3table",
+      "partition.fields": "symbol",
+      "sort.field": "timestamp",
+      "operation": "append",
+      "upsert.equality.fields": "symbol"
+    }
+  }
+]

@@ -1,0 +1,17 @@
+[
+  {
+    "PropertyGroupId": "Input0",
+    "PropertyMap": {
+      "bootstrap.servers": "localhost:9092",
+      "topic": "stock-prices",
+      "group.id": "flink-kafka-example"
+    }
+  },
+  {
+    "PropertyGroupId": "Output0",
+    "PropertyMap": {
+      "bootstrap.servers": "localhost:9092",
+      "topic": "stock-prices-out"
+    }
+  }
+]
