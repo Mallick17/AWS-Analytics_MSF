@@ -49,11 +49,18 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- Kafka Connector -->
+        <!-- Flink Table API bridge (required for RowData, GenericRowData, StringData) -->
+        <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-table-api-java-bridge</artifactId>
+            <version>${flink.version}</version>
+        </dependency>
+
+        <!-- Kafka Connector (updated for Flink 1.19 compatibility) -->
         <dependency>
             <groupId>org.apache.flink</groupId>
             <artifactId>flink-connector-kafka</artifactId>
-            <version>3.1.0-1.18</version>
+            <version>3.2.0-1.19</version>
         </dependency>
 
         <!-- MSK IAM Auth -->
@@ -63,18 +70,38 @@
             <version>2.1.1</version>
         </dependency>
 
-        <!-- Iceberg -->
+        <!-- Iceberg (updated to latest compatible with Flink 1.19) -->
         <dependency>
             <groupId>org.apache.iceberg</groupId>
             <artifactId>iceberg-flink-runtime-1.19</artifactId>
-            <version>1.5.2</version>
+            <version>1.6.1</version>
         </dependency>
 
         <!-- S3 Tables Catalog -->
         <dependency>
             <groupId>software.amazon.s3tables</groupId>
-            <artifactId>s3-tables-catalog</artifactId>
-            <version>0.1.3</version>
+            <artifactId>s3-tables-catalog-for-iceberg-runtime</artifactId>
+            <version>0.1.5</version>
+        </dependency>
+
+        <!-- Hadoop dependencies for Iceberg/S3 access -->
+        <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-common</artifactId>
+            <version>3.3.6</version>
+            <exclusions>
+                <exclude>org.slf4j:slf4j-log4j12</exclude>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-aws</artifactId>
+            <version>3.3.6</version>
+        </dependency>
+        <dependency>
+            <groupId>com.amazonaws</groupId>
+            <artifactId>aws-java-sdk-bundle</artifactId>
+            <version>1.12.767</version>
         </dependency>
 
         <!-- AWS SDK for HTTP calls to FastAPI -->

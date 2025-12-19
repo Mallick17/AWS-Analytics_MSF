@@ -11,6 +11,8 @@ import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
 import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.async.CloseableHttpAsyncClient;
 import org.apache.hc.client5.http.impl.async.HttpAsyncClients;
+import org.apache.hc.client5.http.impl.io.PoolingAsyncClientConnectionManager;
+import org.apache.hc.client5.http.impl.io.PoolingAsyncClientConnectionManagerBuilder;
 import org.apache.hc.core5.concurrent.FutureCallback;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.util.Timeout;
@@ -45,7 +47,13 @@ public class PythonLogicAsyncFunction extends RichAsyncFunction<EventRecord, Eve
     public void open(Configuration parameters) throws Exception {
         super.open(parameters);
         
-        // Create HTTP client with connection pooling and timeouts
+        // Create connection manager with pooling
+        PoolingAsyncClientConnectionManager connectionManager = PoolingAsyncClientConnectionManagerBuilder.create()
+                .setMaxConnTotal(100)
+                .setMaxConnPerRoute(20)
+                .build();
+        
+        // Create HTTP client with timeouts
         RequestConfig requestConfig = RequestConfig.custom()
             .setResponseTimeout(Timeout.of(timeoutMs, TimeUnit.MILLISECONDS))
             .setConnectionRequestTimeout(Timeout.of(timeoutMs, TimeUnit.MILLISECONDS))
@@ -53,8 +61,7 @@ public class PythonLogicAsyncFunction extends RichAsyncFunction<EventRecord, Eve
         
         httpClient = HttpAsyncClients.custom()
             .setDefaultRequestConfig(requestConfig)
-            .setMaxConnTotal(100)
-            .setMaxConnPerRoute(20)
+            .setConnectionManager(connectionManager)
             .build();
         
         httpClient.start();
