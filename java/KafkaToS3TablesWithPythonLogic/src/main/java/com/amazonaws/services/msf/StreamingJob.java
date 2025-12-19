@@ -56,7 +56,7 @@ public class StreamingJob {
         put("kafka.offset", "earliest");
         
         // S3 Tables Configuration
-        put("s3.warehouse", "arn:aws:s3tables:ap-south-1:149815625933:bucket/testing-python-flink-table-bucket");
+        put("s3.warehouse", "arn:aws:s3tables:ap-south-1:149815625933:bucket/flink-transform-sink");
         put("table.namespace", "sink");
         
         // Python FastAPI Configuration
@@ -115,7 +115,7 @@ public class StreamingJob {
 
         LOG.info("Starting MSK to S3 Tables with Python Logic Integration");
 
-        // S3 Tables Catalog Setup
+        // S3 Tables Catalog Setup (without Hadoop)
         Map<String, String> catalogProps = new HashMap<>();
         catalogProps.put(CatalogProperties.CATALOG_IMPL, "software.amazon.s3tables.iceberg.S3TablesCatalog");
         catalogProps.put(CatalogProperties.WAREHOUSE_LOCATION, s3Warehouse);
@@ -123,7 +123,6 @@ public class StreamingJob {
         CatalogLoader catalogLoader = CatalogLoader.custom(
             "s3_tables",
             catalogProps,
-            new org.apache.hadoop.conf.Configuration(),
             "software.amazon.s3tables.iceberg.S3TablesCatalog"
         );
 

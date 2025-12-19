@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.amazonaws.services.msf</groupId>
@@ -11,12 +13,14 @@
 
     <name>Kafka to S3 Tables with Python Logic</name>
 
+    <!-- ===================== -->
+    <!-- Properties -->
+    <!-- ===================== -->
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <flink.version>1.19.1</flink.version>
         <target.java.version>11</target.java.version>
         <scala.binary.version>2.12</scala.binary.version>
-        <kda.connectors.version>4.0.0</kda.connectors.version>
         <kda.runtime.version>1.2.0</kda.runtime.version>
         <log4j.version>2.17.1</log4j.version>
         <iceberg.version>1.6.1</iceberg.version>
@@ -25,9 +29,13 @@
         <maven.compiler.target>${target.java.version}</maven.compiler.target>
     </properties>
 
+    <!-- ===================== -->
+    <!-- Dependency Management -->
+    <!-- ===================== -->
     <dependencyManagement>
         <dependencies>
-            <!-- AWS SDK v2 BOM for modular management -->
+
+            <!-- AWS SDK v2 BOM -->
             <dependency>
                 <groupId>software.amazon.awssdk</groupId>
                 <artifactId>bom</artifactId>
@@ -35,28 +43,48 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
+
+            <!-- ⛔ HARD BLOCK AWS SDK v1 BUNDLE -->
+            <dependency>
+                <groupId>com.amazonaws</groupId>
+                <artifactId>aws-java-sdk-bundle</artifactId>
+                <version>1.12.767</version>
+                <scope>provided</scope>
+            </dependency>
+
         </dependencies>
     </dependencyManagement>
 
+    <!-- ===================== -->
+    <!-- Repositories -->
+    <!-- ===================== -->
     <repositories>
         <repository>
             <id>apache.snapshots</id>
             <name>Apache Development Snapshot Repository</name>
             <url>https://repository.apache.org/content/repositories/snapshots/</url>
-            <releases><enabled>false</enabled></releases>
-            <snapshots><enabled>true</enabled></snapshots>
+            <releases>
+                <enabled>false</enabled>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
         </repository>
     </repositories>
 
+    <!-- ===================== -->
+    <!-- Dependencies -->
+    <!-- ===================== -->
     <dependencies>
-        <!-- Apache Flink dependencies -->
+
+        <!-- Flink Core (Provided by KDA runtime) -->
         <dependency>
             <groupId>org.apache.flink</groupId>
             <artifactId>flink-streaming-java</artifactId>
             <version>${flink.version}</version>
             <scope>provided</scope>
         </dependency>
-        
+
         <dependency>
             <groupId>org.apache.flink</groupId>
             <artifactId>flink-clients</artifactId>
@@ -64,7 +92,7 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- Flink Table API bridge -->
+        <!-- Flink Table API -->
         <dependency>
             <groupId>org.apache.flink</groupId>
             <artifactId>flink-table-api-java-bridge</artifactId>
@@ -78,66 +106,76 @@
             <version>3.2.0-1.19</version>
         </dependency>
 
-        <!-- MSK IAM Auth -->
+        <!-- MSK IAM Authentication -->
         <dependency>
             <groupId>software.amazon.msk</groupId>
             <artifactId>aws-msk-iam-auth</artifactId>
             <version>2.1.1</version>
         </dependency>
 
-        <!-- Iceberg Flink Runtime -->
+        <!-- Iceberg Flink Runtime (NO Hadoop / NO SDK v1) -->
         <dependency>
             <groupId>org.apache.iceberg</groupId>
             <artifactId>iceberg-flink-runtime-1.19</artifactId>
             <version>${iceberg.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>com.amazonaws</groupId>
+                    <artifactId>aws-java-sdk-bundle</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.apache.hadoop</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
-        <!-- Iceberg AWS Bundle (v2 SDK for S3/Glue, replaces Hadoop + v1 bundle) -->
+        <!-- Iceberg AWS Bundle (SDK v2 based, replaces Hadoop + SDK v1) -->
         <dependency>
             <groupId>org.apache.iceberg</groupId>
             <artifactId>iceberg-aws-bundle</artifactId>
             <version>${iceberg.version}</version>
         </dependency>
 
-        <!-- S3 Tables Catalog for Iceberg -->
+        <!-- S3 Tables REST Catalog -->
         <dependency>
             <groupId>software.amazon.s3tables</groupId>
             <artifactId>s3-tables-catalog-for-iceberg-runtime</artifactId>
             <version>0.1.5</version>
         </dependency>
 
-        <!-- AWS SDK v2: S3 Client (pulled by bundle/catalog, explicit for clarity) -->
-        <dependency>
-            <groupId>software.amazon.awssdk</groupId>
-            <artifactId>s3</artifactId>
-        </dependency>
-
-        <!-- AWS SDK v2: Apache HTTP Client (already in your POM) -->
+        <!-- AWS SDK v2 HTTP Client -->
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>apache-client</artifactId>
             <version>${awssdk.version}</version>
         </dependency>
 
-        <!-- HTTP Client for Python API -->
+        <!-- HTTP Client for Python REST Calls -->
         <dependency>
             <groupId>org.apache.httpcomponents.client5</groupId>
             <artifactId>httpclient5</artifactId>
             <version>5.2.1</version>
         </dependency>
 
-        <!-- JSON Processing -->
+        <!-- JSON -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
             <version>2.15.2</version>
         </dependency>
 
-        <!-- KDA Runtime -->
+        <!-- Kinesis Analytics Runtime (SDK v1 excluded) -->
         <dependency>
             <groupId>com.amazonaws</groupId>
             <artifactId>aws-kinesisanalytics-runtime</artifactId>
             <version>${kda.runtime.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>com.amazonaws</groupId>
+                    <artifactId>aws-java-sdk-bundle</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <!-- Logging -->
@@ -147,25 +185,30 @@
             <version>${log4j.version}</version>
             <scope>runtime</scope>
         </dependency>
-        
+
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-api</artifactId>
             <version>${log4j.version}</version>
             <scope>runtime</scope>
         </dependency>
-        
+
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-core</artifactId>
             <version>${log4j.version}</version>
             <scope>runtime</scope>
         </dependency>
+
     </dependencies>
 
+    <!-- ===================== -->
+    <!-- Build -->
+    <!-- ===================== -->
     <build>
         <plugins>
-            <!-- Java Compiler -->
+
+            <!-- Compiler -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -175,7 +218,7 @@
                 </configuration>
             </plugin>
 
-            <!-- Shade Plugin to create fat JAR -->
+            <!-- Shade Plugin -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
@@ -187,19 +230,26 @@
                             <goal>shade</goal>
                         </goals>
                         <configuration>
+
                             <artifactSet>
                                 <excludes>
-                                    <!-- Exclude provided Flink deps -->
+                                    <!-- Provided by Flink runtime -->
                                     <exclude>org.apache.flink:flink-*</exclude>
-                                    <!-- Exclude test deps -->
+
+                                    <!-- ⛔ BLOCK AWS SDK v1 -->
+                                    <exclude>com.amazonaws:aws-java-sdk</exclude>
+                                    <exclude>com.amazonaws:aws-java-sdk-bundle</exclude>
+
+                                    <!-- ⛔ BLOCK Hadoop -->
+                                    <exclude>org.apache.hadoop:*</exclude>
+
+                                    <!-- Test / misc -->
                                     <exclude>*:junit</exclude>
                                     <exclude>*:testng</exclude>
-                                    <!-- Exclude signatures -->
                                     <exclude>com.google.code.findbugs:jsr305</exclude>
-                                    <exclude>org.slf4j:*</exclude>
-                                    <exclude>log4j:*</exclude>
                                 </excludes>
                             </artifactSet>
+
                             <filters>
                                 <filter>
                                     <artifact>*:*</artifact>
@@ -207,21 +257,24 @@
                                         <exclude>META-INF/*.SF</exclude>
                                         <exclude>META-INF/*.DSA</exclude>
                                         <exclude>META-INF/*.RSA</exclude>
-                                        <!-- Exclude unused AWS v1 remnants if any -->
                                         <exclude>META-INF/services/com.amazonaws.services.*</exclude>
                                     </excludes>
                                 </filter>
                             </filters>
+
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <mainClass>com.amazonaws.services.msf.StreamingJob</mainClass>
                                 </transformer>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
                             </transformers>
+
                         </configuration>
                     </execution>
                 </executions>
             </plugin>
+
         </plugins>
     </build>
+
 </project>
