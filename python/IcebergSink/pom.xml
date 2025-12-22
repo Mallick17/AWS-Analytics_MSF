@@ -23,6 +23,7 @@
         <iceberg.version>1.9.0</iceberg.version>
         <awssdk.version>2.31.48</awssdk.version>
         <kafka.connector.version>3.3.0-1.20</kafka.connector.version>
+        <hadoop.version>3.3.4</hadoop.version>
         <kda.runtime.version>1.2.0</kda.runtime.version>
     </properties>
 
@@ -38,7 +39,6 @@
         </dependencies>
     </dependencyManagement>
 
-    <!-- Specify jar dependencies for PyFlink (connectors only) -->
     <dependencies>
         <!-- AWS SDK -->
         <dependency>
@@ -50,7 +50,7 @@
             <artifactId>s3</artifactId>
         </dependency>
 
-        <!-- S3 Tables for Iceberg (from your Java pom) -->
+        <!-- S3 Tables for Iceberg -->
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>s3tables</artifactId>
@@ -61,7 +61,7 @@
             <version>0.1.8</version>
         </dependency>
 
-        <!-- Kafka Connector (from your Java pom, updated for 1.20) -->
+        <!-- Kafka Connector -->
         <dependency>
             <groupId>org.apache.flink</groupId>
             <artifactId>flink-sql-connector-kafka</artifactId>
@@ -75,7 +75,7 @@
             <version>3.6.1</version>
         </dependency>
 
-        <!-- AWS MSK IAM Auth (from your Java pom) -->
+        <!-- AWS MSK IAM Auth -->
         <dependency>
             <groupId>software.amazon.msk</groupId>
             <artifactId>aws-msk-iam-auth</artifactId>
@@ -106,6 +106,18 @@
             <version>${flink.version}</version>
         </dependency>
 
+        <!-- HADOOP CORE - FIXES HdfsConfiguration ERROR -->
+        <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-common</artifactId>
+            <version>${hadoop.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-hdfs-client</artifactId>
+            <version>${hadoop.version}</version>
+        </dependency>
+
         <!-- Flink JSON Format -->
         <dependency>
             <groupId>org.apache.flink</groupId>
@@ -128,7 +140,7 @@
                 </configuration>
             </plugin>
 
-            <!-- Maven Shade Plugin - Python template style -->
+            <!-- Maven Shade Plugin -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
