@@ -1,0 +1,17 @@
+catalog:
+  s3_tables:
+    type: glue
+    warehouse: arn:aws:s3tables:ap-south-1:149815625933:bucket/testing-python-flink-table-bucket
+    client.region: ap-south-1
+    io-impl: org.apache.iceberg.aws.s3.S3FileIO
+    
+    # S3 configuration
+    s3.endpoint: https://s3.ap-south-1.amazonaws.com
+    
+    # AWS credentials (will use IAM role when running on AWS)
+    # s3.access-key-id: YOUR_ACCESS_KEY
+    # s3.secret-access-key: YOUR_SECRET_KEY
+    
+    # Glue catalog configuration
+    glue.skip-archive: true
+    glue.account-id: 149815625933
