@@ -127,25 +127,28 @@ def main():
     iceberg_table_region = iceberg_table_properties["aws.region"]
 
     #################################################
-    # 4. Define input table using datagen connector
+    # 4. Define input table using Kafka connector
     #################################################
 
-    # In a real application, this table will probably be connected to a source stream, using for example the 'kinesis'
-    # connector.
+    # Note: you can keep input_table as a simple name instead of catalog.database.table
+    input_table = "kafka_sensor_readings"
+
     table_env.execute_sql(f"""
-            CREATE TABLE {input_table} (
-                sensor_id INT,
-                temperature NUMERIC(6,2),
-                measurement_time TIMESTAMP(3)
-            )
-            PARTITIONED BY (sensor_id)
-            WITH (
-                'connector' = 'datagen',
-                'fields.sensor_id.min' = '10',
-                'fields.sensor_id.max' = '20',
-                'fields.temperature.min' = '0',
-                'fields.temperature.max' = '100'
-            )
+        CREATE TABLE {input_table} (
+            sensor_id INT,
+            temperature NUMERIC(6,2),
+            measurement_time TIMESTAMP_LTZ(3),
+            WATERMARK FOR measurement_time AS measurement_time - INTERVAL '5' SECOND
+        ) WITH (
+            'connector' = 'kafka',
+            'topic' = 'YOUR_TOPIC_NAME',
+            'properties.bootstrap.servers' = 'YOUR_BOOTSTRAP:9092',
+            'properties.group.id' = 'flink-iceberg-consumer',
+            'scan.startup.mode' = 'earliest-offset',
+            'format' = 'json',
+            'json.fail-on-missing-field' = 'false',
+            'json.ignore-parse-errors' = 'true'
+        )
     """)
 
     #################################################
