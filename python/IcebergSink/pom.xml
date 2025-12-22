@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
@@ -21,6 +22,7 @@
         <flink.major.version>1.20</flink.major.version>
         <iceberg.version>1.9.0</iceberg.version>
         <awssdk.version>2.31.48</awssdk.version>
+        <kafka.connector.version>3.3.0-1.20</kafka.connector.version>
         <kda.runtime.version>1.2.0</kda.runtime.version>
     </properties>
 
@@ -36,28 +38,51 @@
         </dependencies>
     </dependencyManagement>
 
-    <!-- Specify any jar dependencies (e.g. connectors) required -->
+    <!-- Specify jar dependencies for PyFlink (connectors only) -->
     <dependencies>
-        <!-- https://mvnrepository.com/artifact/software.amazon.awssdk/glue -->
+        <!-- AWS SDK -->
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>glue</artifactId>
         </dependency>
-        <!-- https://mvnrepository.com/artifact/software.amazon.awssdk/s3 -->
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>s3</artifactId>
         </dependency>
-        <!-- ADD THESE NEW DEPENDENCIES FOR S3 TABLES -->
+
+        <!-- S3 Tables for Iceberg (from your Java pom) -->
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
-        <artifactId>s3tables</artifactId>
+            <artifactId>s3tables</artifactId>
         </dependency>
         <dependency>
             <groupId>software.amazon.s3tables</groupId>
             <artifactId>s3-tables-catalog-for-iceberg-runtime</artifactId>
             <version>0.1.8</version>
         </dependency>
+
+        <!-- Kafka Connector (from your Java pom, updated for 1.20) -->
+        <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-sql-connector-kafka</artifactId>
+            <version>${kafka.connector.version}</version>
+        </dependency>
+
+        <!-- Kafka Clients -->
+        <dependency>
+            <groupId>org.apache.kafka</groupId>
+            <artifactId>kafka-clients</artifactId>
+            <version>3.6.1</version>
+        </dependency>
+
+        <!-- AWS MSK IAM Auth (from your Java pom) -->
+        <dependency>
+            <groupId>software.amazon.msk</groupId>
+            <artifactId>aws-msk-iam-auth</artifactId>
+            <version>2.2.0</version>
+        </dependency>
+
+        <!-- Iceberg -->
         <dependency>
             <groupId>org.apache.iceberg</groupId>
             <artifactId>iceberg-flink-runtime-${flink.major.version}</artifactId>
@@ -68,6 +93,8 @@
             <artifactId>iceberg-aws-bundle</artifactId>
             <version>${iceberg.version}</version>
         </dependency>
+
+        <!-- Flink S3 FileSystem -->
         <dependency>
             <groupId>org.apache.flink</groupId>
             <artifactId>flink-s3-fs-hadoop</artifactId>
@@ -78,9 +105,11 @@
             <artifactId>flink-hadoop-fs</artifactId>
             <version>${flink.version}</version>
         </dependency>
+
+        <!-- Flink JSON Format -->
         <dependency>
             <groupId>org.apache.flink</groupId>
-            <artifactId>flink-connector-kafka</artifactId>
+            <artifactId>flink-json</artifactId>
             <version>${flink.version}</version>
         </dependency>
     </dependencies>
@@ -99,22 +128,19 @@
                 </configuration>
             </plugin>
 
-            <!-- Maven Shade Plugin to create the "fat-jar" with all required dependencies -->
+            <!-- Maven Shade Plugin - Python template style -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
                 <version>3.6.0</version>
                 <executions>
-                    <!-- Run shade goal on package phase -->
                     <execution>
                         <phase>package</phase>
                         <goals>
                             <goal>shade</goal>
                         </goals>
                         <configuration>
-                            <!-- This configuration prevents the plugin from generating the "original" jar file -->
                             <outputDirectory>${project.build.outputDirectory}</outputDirectory>
-
                             <artifactSet>
                                 <excludes>
                                     <exclude>org.apache.flink:force-shading</exclude>
@@ -125,33 +151,20 @@
                             </artifactSet>
                             <filters>
                                 <filter>
-                                    <!-- Do not copy the signatures in the META-INF folder.
-                                    Otherwise, this might cause SecurityExceptions when using the JAR. -->
                                     <artifact>*:*</artifact>
                                     <excludes>
                                         <exclude>META-INF/*.SF</exclude>
                                         <exclude>META-INF/*.DSA</exclude>
                                         <exclude>META-INF/*.RSA</exclude>
-                                        <!-- Block Multi-Release JAR Classes.
-                                        If Flink job runs on an older Java runtime (e.g., Java 11/17), 
-                                        classes compiled for Java 21/22 would cause UnsupportedClassVersionError.
-                                        Example error: 
-                                        "java.lang.UnsupportedClassVersionError: Unsupported major.minor version 65"
-                                        -->
                                         <exclude>META-INF/versions/21/**</exclude>
                                         <exclude>META-INF/versions/22/**</exclude>
                                     </excludes>
                                 </filter>
                             </filters>
                             <transformers combine.children="append">
-                                <transformer
-                                        implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
-                                <transformer
-                                        implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                </transformer>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer"/>
                             </transformers>
-                            <!-- Renames (relocates) Hadoop/Flink classes to avoid version conflicts when deploying to environments with pre-existing dependencies.
-                            This prevents ClassNotFoundException or NoSuchMethodError issues caused by conflicting library versions in the runtime classpath.-->
                             <relocations>
                                 <relocation>
                                     <pattern>org.apache.hadoop.conf</pattern>
@@ -167,7 +180,7 @@
                 </executions>
             </plugin>
 
-            <!-- Maven Assembly Plugin to create the zip file containing the Python code and the fat-jar -->
+            <!-- Maven Assembly for Python zip -->
             <plugin>
                 <artifactId>maven-assembly-plugin</artifactId>
                 <version>3.3.0</version>
@@ -190,7 +203,7 @@
                 </executions>
             </plugin>
 
-            <!-- Maven jar plugin controls the  name of the generated jar -->
+            <!-- JAR naming -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
