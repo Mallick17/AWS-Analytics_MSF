@@ -3,6 +3,7 @@ PyFlink MSK → S3 Tables (Iceberg) - Converted from Java StreamingJob
 """
 import os
 import json
+import pyflink
 from pyflink.table import EnvironmentSettings, TableEnvironment
 
 #######################################
