@@ -13,6 +13,12 @@ from pyflink.table import EnvironmentSettings, TableEnvironment
 env_settings = EnvironmentSettings.in_streaming_mode()
 table_env = TableEnvironment.create(env_settings)
 
+# Fix classloader conflicts - use parent-first for problematic libraries
+table_env.get_config().get_configuration().set_string(
+    "classloader.parent-first-patterns.additional", 
+    "org.apache.commons.cli;org.apache.kafka;software.amazon"
+)
+
 # Checkpointing (matches Java)
 table_env.get_config().get_configuration().set_string("execution.checkpointing.mode", "EXACTLY_ONCE")
 table_env.get_config().get_configuration().set_string("execution.checkpointing.interval", "60000")
