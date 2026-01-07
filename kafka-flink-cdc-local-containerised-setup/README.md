@@ -264,6 +264,9 @@ This is **perfect** for:
 
 ---
 
+<details>
+    <summary>Click to view if you face Out Of Memory Error</summary>
+
 # What actually happened (root cause)
 
 ### Key facts from your output
@@ -399,7 +402,10 @@ docker exec -it docker_local_testing-flink-jobmanager-1 \
   -py /opt/flink/app/kafka_debug.py
 ```
 
+</details>
+
 ---
+
 
 # 🔍 How to PROVE Kafka → Flink is working (step-by-step)
 
@@ -680,7 +686,9 @@ Submit the Flink job in **detached (background) mode**.
 
 ```bash
 docker exec -it docker_local_testing-flink-jobmanager-1 \
-  flink run -d -py /opt/flink/app/job.py
+  flink run -d \
+  -pyfs /opt/flink/app \
+  -py /opt/flink/app/kafka_debug.py
 ```
 
 ✅ The job will:
