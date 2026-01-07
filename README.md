@@ -92,3 +92,237 @@ See [Contributing Guidelines](CONTRIBUTING.md#security-issue-notifications) for 
 ## License Summary
 
 This sample code is made available under the MIT-0 license. See the LICENSE file.
+
+
+
+# Download ALL Flink JAR dependencies
+
+These are **mandatory** for Flink jobs to work.
+
+### 📂 Target directory
+
+```bash
+mkdir -p flink/usrlib
+```
+
+---
+
+## 🔹 Kafka Connector JAR (REQUIRED)
+
+```bash
+curl -L -o flink/usrlib/flink-connector-kafka-3.2.0-1.19.jar \
+https://repo1.maven.org/maven2/org/apache/flink/flink-connector-kafka/3.2.0-1.19/flink-connector-kafka-3.2.0-1.19.jar
+```
+
+---
+
+## 🔹 Iceberg Runtime JAR (REQUIRED)
+
+```bash
+curl -L -o flink/usrlib/iceberg-flink-runtime-1.19-1.6.1.jar \
+https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-flink-runtime-1.19/1.6.1/iceberg-flink-runtime-1.19-1.6.1.jar
+```
+
+---
+
+### ✅ Final expected structure
+
+```text
+flink/usrlib/
+├── flink-connector-kafka-3.2.0-1.19.jar
+└── iceberg-flink-runtime-1.19-1.6.1.jar
+```
+
+Flink will auto-load everything from `usrlib`.
+
+Great question — this is **exactly the right thing to ask** at this stage 👍
+Let’s clear this **precisely**, because **adding unnecessary JARs can break Flink**.
+
+---
+
+# ❓ Do we need **kafka-clients** and **Hadoop client** JARs?
+
+Short answer:
+
+> ⚠️ **NO — do NOT manually add them (in most cases)**
+> ✅ They are **already transitively included** where required
+
+Now I’ll explain **why**, **when you DO need them**, and **how to download them safely if required**.
+
+---
+
+# 🧠 Flink dependency model (CRITICAL to understand)
+
+Flink has **three layers of dependencies**:
+
+1️⃣ **Flink distribution (inside image)**
+2️⃣ **Connector JARs (Kafka, Iceberg, etc.)**
+3️⃣ **Transitive dependencies (kafka-clients, Hadoop, AWS SDK, etc.)**
+
+You should **ONLY** add layer **#2 manually**.
+
+---
+
+# 🔹 Kafka client JAR (`kafka-clients-3.6.1`)
+
+## ❌ Do you need to download it manually?
+
+**NO**
+
+### Why?
+
+* `flink-connector-kafka-3.2.0-1.19.jar` **already bundles**:
+
+  * `kafka-clients`
+  * serializers
+  * protocol classes
+
+If you manually add:
+
+```
+kafka-clients-3.6.1.jar
+```
+
+You risk:
+
+* ❌ Version conflicts
+* ❌ `NoSuchMethodError`
+* ❌ Consumer group instability
+
+### ✅ Correct approach
+
+✔ Add **ONLY**:
+
+```
+flink-connector-kafka-3.2.0-1.19.jar
+```
+
+Flink will resolve Kafka clients internally.
+
+---
+
+### Why?
+
+* You are using **local filesystem Iceberg**:
+
+  ```
+  /iceberg/warehouse
+  ```
+* No HDFS
+* No S3
+* No GCS
+* No Azure Blob
+
+So Hadoop is **not required**.
+
+That log line you saw:
+
+```text
+Hadoop FS is not available (not packaged with this application)
+```
+
+👉 This is **INFO**, not ERROR
+👉 Completely safe to ignore
+
+---
+
+# ⚠️ WHEN do you actually NEED Hadoop JARs?
+
+You need Hadoop **ONLY IF**:
+
+| Use case            | Need Hadoop? |
+| ------------------- | ------------ |
+| HDFS                | ✅ YES        |
+| S3A (Iceberg on S3) | ✅ YES        |
+| Azure / GCS         | ✅ YES        |
+| Local FS            | ❌ NO         |
+
+---
+
+# ✅ Correct Hadoop setup (FOR FUTURE – AWS S3)
+
+When you move to **Iceberg on S3**, you will need:
+
+### Required JARs
+
+```
+hadoop-common-3.3.6.jar
+hadoop-aws-3.3.6.jar
+aws-java-sdk-bundle-1.12.x.jar
+```
+
+### But ⚠️ NOT now.
+
+---
+
+# 🧱 Safe JAR matrix (THIS IS IMPORTANT)
+
+| Component             | Should you add manually? |
+| --------------------- | ------------------------ |
+| flink-connector-kafka | ✅ YES                    |
+| iceberg-flink-runtime | ✅ YES                    |
+| kafka-clients         | ❌ NO                     |
+| hadoop-client         | ❌ NO                     |
+| aws-sdk               | ❌ NO (until S3)          |
+
+---
+
+# ❗ Why adding extra JARs is dangerous
+
+Flink uses **child-first classloading**.
+
+If you add:
+
+* Wrong Kafka client version
+* Wrong Hadoop version
+
+You will get:
+
+* `NoSuchMethodError`
+* `ClassCastException`
+* Random runtime failures
+
+These are **nightmare bugs**.
+
+---
+
+# ✅ If you REALLY want to download them (for reference only)
+
+### Kafka clients (NOT recommended now)
+
+```bash
+curl -LO https://repo1.maven.org/maven2/org/apache/kafka/kafka-clients/3.6.1/kafka-clients-3.6.1.jar
+```
+
+### Hadoop client (NOT recommended now)
+
+```bash
+curl -LO https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-client/3.3.6/hadoop-client-3.3.6.jar
+```
+
+⚠️ **Do NOT place them in `flink/usrlib` yet**
+
+---
+
+# 🧠 Final Rule (memorize this)
+
+> **Only add “connector JARs”, never “client JARs”**
+
+Flink connectors are **opinionated bundles** — they manage compatibility for you.
+
+---
+
+# ✅ Your CURRENT correct `flink/usrlib`
+
+```text
+flink/usrlib/
+├── flink-connector-kafka-3.2.0-1.19.jar
+└── iceberg-flink-runtime-1.19-1.6.1.jar
+```
+
+This is **perfect** for:
+
+* Kafka → Flink
+* Flink → Iceberg (local FS)
+
+---
