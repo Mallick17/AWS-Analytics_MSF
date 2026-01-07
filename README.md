@@ -326,3 +326,457 @@ This is **perfect** for:
 * Flink → Iceberg (local FS)
 
 ---
+
+# What actually happened (root cause)
+
+### Key facts from your output
+
+1. **Job submission succeeded**
+
+```
+Job has been submitted with JobID 0857966e...
+```
+
+2. **TaskManager exited**
+
+```
+docker_local_testing-flink-taskmanager-1  Exited (137)
+```
+
+3. **JobManager still running**
+
+```
+docker_local_testing-flink-jobmanager-1  Up
+```
+
+4. **No running jobs**
+
+```
+flink list
+No running jobs.
+```
+
+---
+
+## ❗ Exit code 137 = OOM Kill (very important)
+
+**Exit (137)** means:
+
+> 💥 **Linux kernel killed the TaskManager due to memory pressure**
+
+This is **not a Flink bug**
+This is **Docker memory + Flink default memory**
+
+---
+
+# 🔎 Why this kills your job
+
+Flink architecture:
+
+```
+JobManager (control plane)  ✅ alive
+TaskManager (execution)    ❌ dead
+```
+
+When the **TaskManager dies**:
+
+* The job **immediately fails**
+* JobManager cleans it up
+* `flink list` shows **nothing**
+
+👉 That’s **exactly what you’re seeing**
+
+---
+
+# 🧠 Why it happens in YOUR setup
+
+You are running:
+
+* Kafka connector
+* PyFlink
+* Python gateway
+* No explicit memory limits
+
+Default Flink TM memory:
+
+```
+~1.6 GB process memory
+```
+
+Docker Desktop (Mac):
+
+* Often limited to **2–4 GB total**
+* Kafka + Zookeeper already consume memory
+
+👉 **OOM kill is guaranteed**
+
+---
+
+# ✅ First FIX: keep TaskManager alive (MANDATORY)
+
+### Update `docker-compose.yml`
+
+Add **explicit memory limits** and reduce Flink memory usage.
+
+```yaml
+  flink-taskmanager:
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: flink/Dockerfile
+    command: taskmanager
+    depends_on:
+      - flink-jobmanager
+    volumes:
+      - ./iceberg:/iceberg
+    environment:
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: flink-jobmanager
+        taskmanager.numberOfTaskSlots: 1
+        taskmanager.memory.process.size: 1024m
+        taskmanager.memory.jvm-metaspace.size: 128m
+        taskmanager.memory.jvm-overhead.max: 128m
+    deploy:
+      resources:
+        limits:
+          memory: 1.2g
+```
+
+Then restart **cleanly**:
+
+```bash
+docker-compose down -v
+docker-compose up -d
+```
+
+---
+
+# ✅ Second FIX: run debug job correctly (shipping Python files)
+
+You **must** use `-pyfs` (you already learned this 👌):
+
+```bash
+docker exec -it docker_local_testing-flink-jobmanager-1 \
+  flink run -d \
+  -pyfs /opt/flink/app \
+  -py /opt/flink/app/kafka_debug.py
+```
+
+---
+
+# 🔍 How to PROVE Kafka → Flink is working (step-by-step)
+
+## 1️⃣ Confirm TaskManager stays alive
+
+```bash
+docker ps
+```
+
+You MUST see:
+
+```
+docker_local_testing-flink-taskmanager-1   Up
+```
+
+If it exits → memory is still insufficient.
+
+---
+
+## 2️⃣ Submit job
+
+```bash
+flink run -d -pyfs /opt/flink/app -py /opt/flink/app/kafka_debug.py
+```
+
+---
+
+## 3️⃣ Verify job is running
+
+```bash
+docker exec -it docker_local_testing-flink-jobmanager-1 flink list
+```
+
+Expected:
+
+```
+Running jobs:
+----------------------------------
+KafkaDebugJob (RUNNING)
+----------------------------------
+```
+
+---
+
+## 4️⃣ Produce Kafka messages
+
+```bash
+docker exec -it docker_local_testing-kafka-1 \
+  kafka-console-producer \
+  --bootstrap-server kafka:9092 \
+  --topic orders
+```
+
+Send:
+
+```json
+{"event_id":"99","msg":"hello flink"}
+```
+
+---
+
+## 5️⃣ Check TaskManager logs (THIS is the proof)
+
+```bash
+docker logs docker_local_testing-flink-taskmanager-1 --tail 50
+```
+
+You should see:
+
+```
+Received record: {"event_id":"99","msg":"hello flink"}
+```
+
+🎯 **That is absolute confirmation** that:
+
+* Kafka is producing
+* Flink is consuming
+* Python → Java bridge works
+* No Iceberg / SQL involved
+
+---
+
+# 🧠 Why `flink list` showed nothing earlier
+
+Because:
+
+```
+TaskManager OOM → Job fails → Job removed → flink list empty
+```
+
+This is **normal Flink behavior**.
+
+---
+
+# ✅ Final mental model (remember this)
+
+| Symptom                      | Meaning             |
+| ---------------------------- | ------------------- |
+| Exit (137)                   | OOM Kill            |
+| Job submitted but disappears | TaskManager crashed |
+| JobManager alive             | Control plane OK    |
+| No running jobs              | Execution died      |
+
+---
+
+# 🚀 You are actually DONE with Kafka verification
+
+At this point you’ve proven:
+
+* Kafka topic works
+* Producer works
+* Consumer works
+* Flink job submission works
+* Only missing piece was **memory**
+
+---
+
+Below is a **clean, step-by-step runbook style documentation**, using **your exact commands**, only reorganized and clarified.
+No logic or flow is changed.
+
+---
+
+# 📘 Local Kafka → Flink Setup Runbook
+
+This document describes how to bring up the local Kafka–Flink environment using Docker Compose, create Kafka topics, verify dependencies, and submit a Flink job.
+
+---
+
+## 1️⃣ Navigate to Docker Compose Directory
+
+Go to the directory where `docker-compose.yml` is present.
+
+```bash
+cd <path-to-docker-compose-directory>
+```
+
+---
+
+## 2️⃣ Start the Docker Environment (Clean Setup)
+
+Bring down any existing containers, rebuild images, and start everything fresh.
+
+```bash
+docker compose down -v
+docker compose build --no-cache
+docker compose up -d
+```
+
+✅ This ensures:
+
+* No stale containers
+* Fresh images
+* Clean volumes
+
+---
+
+## 3️⃣ Copy Flink Job into JobManager Container
+
+Copy the Flink Python job into the Flink JobManager container.
+
+```bash
+docker cp flink/job.py docker_local_testing-flink-jobmanager-1:/job.py
+```
+
+---
+
+## 4️⃣ Kafka Topic Management
+
+### 🔹 Create Kafka Topic
+
+Create the `orders` topic.
+
+```bash
+docker exec -it docker_local_testing-kafka-1 \
+  kafka-topics \
+  --bootstrap-server kafka:9092 \
+  --create \
+  --topic orders \
+  --partitions 1 \
+  --replication-factor 1
+```
+
+---
+
+### Add Events to the topic
+
+```bash
+docker exec -it docker_local_testing-kafka-1 \
+  kafka-console-producer \
+  --bootstrap-server kafka:9092 \
+  --topic orders
+```
+
+- Add the event
+```
+{"event_id":"1","order_id":"ORD-1","user_id":"U1","amount":100}
+```
+
+- Check the event weather it is received in the topics or not
+```
+docker exec -it docker_local_testing-kafka-1 \
+  kafka-console-consumer \
+  --bootstrap-server kafka:9092 \
+  --topic orders \
+  --from-beginning \
+  --max-messages 1
+```
+
+---
+
+### 
+
+### 🔹 List Kafka Topics
+
+Verify that the topic was created successfully.
+
+```bash
+docker exec -it docker_local_testing-kafka-1 \
+  kafka-topics \
+  --bootstrap-server kafka:9092 \
+  --list
+```
+
+Expected output:
+
+```
+orders
+```
+
+---
+
+## 5️⃣ Verify Python Dependency in Flink Container
+
+Check that the required Python dependency is available inside the Flink JobManager container.
+
+```bash
+docker exec -it docker_local_testing-flink-jobmanager-1 \
+  python -c "import ruamel.yaml; print('ruamel OK')"
+```
+
+Expected output:
+
+```
+ruamel OK
+```
+
+---
+
+## 6️⃣ Verify Application Code Exists in Container
+
+Ensure the application code is present inside the container.
+
+### 🔹 Check `common` package
+
+```bash
+docker exec -it docker_local_testing-flink-jobmanager-1 \
+  ls /opt/flink/app/common
+```
+
+### 🔹 Check application root
+
+```bash
+docker exec -it docker_local_testing-flink-jobmanager-1 \
+  ls /opt/flink/app
+```
+
+Expected to see:
+
+* `job.py`
+* `common/`
+* other project files
+
+---
+
+## 7️⃣ Submit Flink Job (Final Step)
+
+Submit the Flink job in **detached (background) mode**.
+
+```bash
+docker exec -it docker_local_testing-flink-jobmanager-1 \
+  flink run -d -py /opt/flink/app/job.py
+```
+
+✅ The job will:
+
+* Be submitted to the Flink cluster
+* Run in the background
+* Continue running even after you exit the terminal
+
+---
+
+## 8️⃣ (Optional) Verify Job Status
+
+Check running Flink jobs.
+
+```bash
+docker exec -it docker_local_testing-flink-jobmanager-1 flink list
+```
+
+You can also verify via the Flink UI:
+
+```
+http://localhost:8081
+```
+
+---
+
+## ✅ End Result
+
+At this point:
+
+* Docker services are running
+* Kafka topic is created
+* Python dependencies are verified
+* Flink job is successfully submitted and running
+
+---
