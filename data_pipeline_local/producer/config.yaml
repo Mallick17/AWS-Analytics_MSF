@@ -1,0 +1,22 @@
+# Producer Configuration
+kafka:
+  bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS:-localhost:9092}
+  topic: ${KAFKA_TOPIC_ORDERS:-orders.created.v1}
+  acks: all
+  retries: 3
+  linger_ms: 10
+  batch_size: 16384
+
+producer:
+  default_rate: 10  # events per second
+  default_count: 100  # number of events to produce
+  seed: null  # random seed for deterministic runs
+
+order:
+  currencies:
+    - USD
+    - EUR
+    - GBP
+    - INR
+  min_amount: 10.00
+  max_amount: 5000.00
