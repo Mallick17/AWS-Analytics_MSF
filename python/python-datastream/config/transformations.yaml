@@ -1,0 +1,47 @@
+transformations:
+  # Transformation 1: Raw bid events
+  - name: "bid_events_raw"
+    enabled: true
+    source_topic: "bid_events"
+    source_table: "kafka_bid_events"
+    sink_table: "bid_events_raw"
+    transformer_class: "BidEventsRawTransformer"
+    description: "Store raw bid events"
+    
+  # Transformation 2: Aggregated bid metrics
+  - name: "bid_events_aggregated"
+    enabled: true
+    source_topic: "bid_events"
+    source_table: "kafka_bid_events"
+    sink_table: "bid_events_hourly_agg"
+    transformer_class: "BidEventsAggregatedTransformer"
+    description: "Hourly aggregated bid metrics"
+    
+  # Transformation 3: User events processed
+  - name: "user_events_processed"
+    enabled: true
+    source_topic: "user_events"
+    source_table: "kafka_user_events"
+    sink_table: "user_events_processed"
+    transformer_class: "UserEventsProcessedTransformer"
+    description: "Processed user activity events"
+    
+  # Transformation 4: Enriched order events
+  - name: "order_events_enriched"
+    enabled: true
+    source_topic: "order_events"
+    source_table: "kafka_order_events"
+    sink_table: "order_events_enriched"
+    transformer_class: "OrderEventsEnrichedTransformer"
+    description: "Orders with derived fields"
+    
+  # Transformation 5: Session analytics (from bid + user events)
+  - name: "session_analytics"
+    enabled: true
+    source_topic: "bid_events"  # Primary source
+    source_table: "kafka_bid_events"
+    sink_table: "session_analytics"
+    transformer_class: "SessionAnalyticsTransformer"
+    description: "Cross-topic session analysis"
+    additional_sources:
+      - "kafka_user_events"

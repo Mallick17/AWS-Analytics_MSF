@@ -1,0 +1,36 @@
+kafka_topics:
+  bid_events:
+    topic_name: "bid-events"
+    consumer_group: "flink-bid-consumer"
+    startup_mode: "earliest-offset"
+    schema:
+      event_name: STRING
+      user_id: BIGINT
+      city_id: INT
+      platform: STRING
+      session_id: STRING
+      timestamp_ms: BIGINT
+      bid_amount: DOUBLE
+  
+  user_events:
+    topic_name: "user-events"
+    consumer_group: "flink-user-consumer"
+    startup_mode: "latest-offset"
+    schema:
+      event_type: STRING
+      user_id: BIGINT
+      action: STRING
+      timestamp_ms: BIGINT
+      metadata: STRING
+  
+  order_events:
+    topic_name: "order-events"
+    consumer_group: "flink-order-consumer"
+    startup_mode: "earliest-offset"
+    schema:
+      order_id: STRING
+      user_id: BIGINT
+      product_id: STRING
+      quantity: INT
+      price: DOUBLE
+      timestamp_ms: BIGINT
