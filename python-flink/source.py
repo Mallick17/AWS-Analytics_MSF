@@ -1,4 +1,5 @@
-# source.py
+# source.py (UPDATED: dedent for SQL)
+import textwrap
 from utils import log_message
 
 def create_kafka_source(table_env, msk_bootstrap_servers, kafka_topic):
@@ -7,7 +8,7 @@ def create_kafka_source(table_env, msk_bootstrap_servers, kafka_topic):
     table_env.use_database("default_database")
     log_message("Creating Kafka source with JSON format")
     
-    table_env.execute_sql(f"""
+    sql = textwrap.dedent(f"""
         CREATE TABLE kafka_events (
             event_name STRING,
             user_id BIGINT,
@@ -31,4 +32,5 @@ def create_kafka_source(table_env, msk_bootstrap_servers, kafka_topic):
                 'software.amazon.msk.auth.iam.IAMClientCallbackHandler'
         )
     """)
+    table_env.execute_sql(sql)
     log_message("✓ Kafka source created")

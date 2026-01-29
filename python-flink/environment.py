@@ -1,4 +1,5 @@
-# environment.py
+# environment.py (UPDATED: added pipeline.jars config + textwrap import for future)
+import textwrap
 from utils import import_pyflink, log_message
 
 def create_table_environment():
@@ -14,6 +15,8 @@ def create_table_environment():
     config.set_string("execution.checkpointing.timeout", "2min")
     config.set_string("execution.checkpointing.mode", "EXACTLY_ONCE")
     config.set_string("taskmanager.log.level", "DEBUG")
+    # Rely on Managed Flink classpath (no manual injection)
+    config.set_string("pipeline.jars", "file://./lib/pyflink-dependencies.jar")
     log_message("Pipeline configuration applied")
     
     return table_env

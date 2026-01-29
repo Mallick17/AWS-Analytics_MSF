@@ -1,4 +1,5 @@
-# sink.py
+# sink.py (UPDATED: dedent for SQL)
+import textwrap
 from utils import log_message
 from transformations import INSERT_QUERY_TEMPLATE
 
@@ -10,7 +11,7 @@ def create_iceberg_sinks(table_env, event_types):
     for event_type in event_types:
         table_name = f"{event_type}_events"
         log_message(f"Creating Iceberg sink table: {table_name}")
-        table_env.execute_sql(f"""
+        sql = textwrap.dedent(f"""
             CREATE TABLE IF NOT EXISTS {table_name} (
                 event_name STRING,
                 user_id BIGINT,
@@ -26,6 +27,7 @@ def create_iceberg_sinks(table_env, event_types):
                 'write.parquet.compression-codec' = 'snappy'
             )
         """)
+        table_env.execute_sql(sql)
         log_message(f"✓ Iceberg sink {table_name} created")
 
 def submit_insert_jobs(table_env, event_types):
@@ -38,6 +40,7 @@ def submit_insert_jobs(table_env, event_types):
             table_name=table_name,
             event_type=event_type
         )
+        # Dedent if needed, but template is already clean
         table_env.execute_sql(insert_query)
         log_message(f"✓ INSERT submitted for {event_type} into {table_name}")
     
