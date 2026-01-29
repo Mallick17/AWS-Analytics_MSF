@@ -7,7 +7,7 @@
     </formats>
     <includeBaseDirectory>false</includeBaseDirectory>
     <fileSets>
-        <!-- Main streaming job -->
+        <!-- Main files -->
         <fileSet>
             <directory>${project.basedir}</directory>
             <outputDirectory>/</outputDirectory>
@@ -16,8 +16,7 @@
                 <include>application_properties.json</include>
             </includes>
         </fileSet>
-        
-        <!-- Common package -->
+        <!-- Common utilities -->
         <fileSet>
             <directory>${project.basedir}/common</directory>
             <outputDirectory>common</outputDirectory>
@@ -25,8 +24,7 @@
                 <include>**/*.py</include>
             </includes>
         </fileSet>
-        
-        <!-- Transformations package -->
+        <!-- Transformations -->
         <fileSet>
             <directory>${project.basedir}/transformations</directory>
             <outputDirectory>transformations</outputDirectory>
@@ -34,17 +32,15 @@
                 <include>**/*.py</include>
             </includes>
         </fileSet>
-        
-        <!-- Configuration files -->
+        <!-- Config -->
         <fileSet>
             <directory>${project.basedir}/config</directory>
             <outputDirectory>config</outputDirectory>
             <includes>
-                <include>*.yaml</include>
+                <include>*.yaml</include> <!-- Keep if needed, but examples use hard-coded -->
             </includes>
         </fileSet>
-        
-        <!-- Dependency JAR -->
+        <!-- Dep JAR -->
         <fileSet>
             <directory>${project.build.directory}</directory>
             <outputDirectory>lib</outputDirectory>
@@ -52,5 +48,6 @@
                 <include>pyflink-dependencies.jar</include>
             </includes>
         </fileSet>
+        <!-- Bundled Python deps -->
     </fileSets>
 </assembly>

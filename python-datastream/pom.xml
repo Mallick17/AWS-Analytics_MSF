@@ -57,7 +57,7 @@
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>s3tables</artifactId>
         </dependency>
-        <!-- AWS S3 Tables Iceberg Catalog (DOC-CANONICAL) -->
+        <!-- AWS S3 Tables Iceberg Catalog -->
         <dependency>
             <groupId>software.amazon.s3tables</groupId>
             <artifactId>s3-tables-catalog-for-iceberg</artifactId>
@@ -97,7 +97,6 @@
             <artifactId>hadoop-common</artifactId>
             <version>3.3.4</version>
         </dependency>
-
     </dependencies>
 
     <build>
@@ -139,7 +138,6 @@
                                 </excludes>
                             </artifactSet>
 
-
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
                             </transformers>
@@ -160,6 +158,8 @@
                     </execution>
                 </executions>
             </plugin>
+            
+            <!-- Package everything into ZIP -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-assembly-plugin</artifactId>
@@ -181,7 +181,6 @@
                     </execution>
                 </executions>
             </plugin>
-
 
         </plugins>
     </build>
