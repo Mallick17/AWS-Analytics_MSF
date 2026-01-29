@@ -7,7 +7,7 @@
 
 # Global Kafka Configuration
 kafka:
-  bootstrap_servers: "b-1.workingmultitableclus.nhe1pt.c2.kafka.ap-south-1.amazonaws.com:9098,b-2.workingmultitableclus.nhe1pt.c2.kafka.ap-south-1.amazonaws.com:9098,b-3.workingmultitableclus.nhe1pt.c2.kafka.ap-south-1.amazonaws.com:9098"
+  bootstrap_servers: "b-1.rttestinganalyticsmsk.mbenee.c4.kafka.ap-south-1.amazonaws.com:9098,b-2.rttestinganalyticsmsk.mbenee.c4.kafka.ap-south-1.amazonaws.com:9098"
   security:
     protocol: "SASL_SSL"
     sasl_mechanism: "AWS_MSK_IAM"
