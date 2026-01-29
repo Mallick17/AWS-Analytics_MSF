@@ -1,0 +1,100 @@
+# ==================================================================================
+# KAFKA TOPICS CONFIGURATION
+# ==================================================================================
+# Define all Kafka topics that should be processed by the Flink job.
+# Each topic includes schema definitions and processing parameters.
+# ==================================================================================
+
+# Global Kafka Configuration
+kafka:
+  bootstrap_servers: "b-1.workingmultitableclus.nhe1pt.c2.kafka.ap-south-1.amazonaws.com:9098,b-2.workingmultitableclus.nhe1pt.c2.kafka.ap-south-1.amazonaws.com:9098,b-3.workingmultitableclus.nhe1pt.c2.kafka.ap-south-1.amazonaws.com:9098"
+  security:
+    protocol: "SASL_SSL"
+    sasl_mechanism: "AWS_MSK_IAM"
+    sasl_jaas_config: "software.amazon.msk.auth.iam.IAMLoginModule required;"
+    sasl_callback_handler: "software.amazon.msk.auth.iam.IAMClientCallbackHandler"
+
+# Topic Definitions
+topics:
+  # =================================================================================
+  # ✅ TOPIC 1: BID EVENTS (Working Example)
+  # =================================================================================
+  bid-events:
+    enabled: true
+    kafka_group_id: "flink-s3tables-json-v1"
+    scan_mode: "earliest-offset"  # Options: earliest-offset, latest-offset
+    format: "json"
+    
+    # Source Schema (Kafka Message Structure)
+    source_schema:
+      - name: "event_name"
+        type: "STRING"
+      - name: "user_id"
+        type: "BIGINT"
+      - name: "city_id"
+        type: "INT"
+      - name: "platform"
+        type: "STRING"
+      - name: "session_id"
+        type: "STRING"
+      - name: "timestamp_ms"
+        type: "BIGINT"
+    
+    # Sink Configuration (Iceberg Table)
+    sink:
+      table_name: "parsed_events"
+      # Sink Schema (Transformed Output)
+      schema:
+        - name: "event_name"
+          type: "STRING"
+        - name: "user_id"
+          type: "BIGINT"
+        - name: "city_id"
+          type: "INT"
+        - name: "platform"
+          type: "STRING"
+        - name: "session_id"
+          type: "STRING"
+        - name: "event_time"
+          type: "TIMESTAMP(3)"
+        - name: "ingestion_time"
+          type: "TIMESTAMP(3)"
+    
+    # Transformation to Apply
+    transformation: "bid_events_raw"
+
+  # =================================================================================
+  # 🔖 ADD YOUR NEW TOPICS HERE
+  # =================================================================================
+  # Example: User Activity Events
+  # user-activity:
+  #   enabled: false  # Set to true to activate
+  #   kafka_group_id: "flink-user-activity-v1"
+  #   scan_mode: "latest-offset"
+  #   format: "json"
+  #   
+  #   source_schema:
+  #     - name: "user_id"
+  #       type: "BIGINT"
+  #     - name: "activity_type"
+  #       type: "STRING"
+  #     - name: "page_url"
+  #       type: "STRING"
+  #     - name: "timestamp_ms"
+  #       type: "BIGINT"
+  #   
+  #   sink:
+  #     table_name: "user_activities"
+  #     schema:
+  #       - name: "user_id"
+  #         type: "BIGINT"
+  #       - name: "activity_type"
+  #         type: "STRING"
+  #       - name: "page_url"
+  #         type: "STRING"
+  #       - name: "activity_time"
+  #         type: "TIMESTAMP(3)"
+  #       - name: "ingestion_time"
+  #         type: "TIMESTAMP(3)"
+  #   
+  #   transformation: "user_events_processed"
