@@ -1,6 +1,6 @@
-from abc import ABC, abstractmethod
 from pyflink.table import TableEnvironment
-from typing import Dict
+from typing import Dict, List, Optional
+from abc import ABC, abstractmethod
 
 class BaseTransformer(ABC):
     def __init__(self, table_env: TableEnvironment):
@@ -8,20 +8,34 @@ class BaseTransformer(ABC):
     
     @abstractmethod
     def get_sink_schema(self) -> Dict[str, str]:
-        """Define output schema"""
+        """Return the schema for the sink table"""
         pass
     
     @abstractmethod
-    def get_transformation_sql(self, source_table: str, sink_table: str) -> str:
-        """Define transformation logic"""
+    def get_partition_by(self) -> Optional[List[str]]:
+        """Return partition columns (or None)"""
         pass
     
-    def get_partition_by(self):
-        """Optional: Define partitioning strategy"""
-        return None
+    @abstractmethod
+    def get_transformation_sql(self, source_table: str) -> str:
+        """Return the SELECT query for transformation"""
+        pass
     
-    def execute(self, source_table: str, sink_table: str):
-        """Execute the transformation"""
-        sql = self.get_transformation_sql(source_table, sink_table)
-        print(f"Executing: {self.__class__.__name__}")
-        return self.table_env.execute_sql(sql)
+    def get_insert_sql(
+        self, 
+        source_table: str, 
+        sink_table: str,
+        catalog_name: str,
+        namespace: str
+    ) -> str:
+        """Generate the full INSERT INTO statement"""
+        # Get the transformation SELECT
+        select_sql = self.get_transformation_sql(source_table)
+        
+        # Build full INSERT statement
+        insert_sql = f"""
+            INSERT INTO {catalog_name}.{namespace}.{sink_table}
+            {select_sql}
+        """
+        
+        return insert_sql

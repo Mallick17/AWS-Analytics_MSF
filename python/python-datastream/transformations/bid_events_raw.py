@@ -1,5 +1,5 @@
 from transformations.base_transformer import BaseTransformer
-from typing import Dict
+from typing import Dict, List, Optional
 
 class BidEventsRawTransformer(BaseTransformer):
     def get_sink_schema(self) -> Dict[str, str]:
@@ -9,24 +9,21 @@ class BidEventsRawTransformer(BaseTransformer):
             "city_id": "INT",
             "platform": "STRING",
             "session_id": "STRING",
-            "bid_amount": "DOUBLE",
             "event_time": "TIMESTAMP(3)",
             "ingestion_time": "TIMESTAMP(3)"
         }
     
-    def get_partition_by(self):
-        return ["DATE(event_time)"]
+    def get_partition_by(self) -> Optional[List[str]]:
+        return None  # No partitioning for raw events
     
-    def get_transformation_sql(self, source_table: str, sink_table: str) -> str:
+    def get_transformation_sql(self, source_table: str) -> str:
         return f"""
-            INSERT INTO {sink_table}
             SELECT
                 event_name,
                 user_id,
                 city_id,
                 platform,
                 session_id,
-                bid_amount,
                 TO_TIMESTAMP_LTZ(timestamp_ms, 3) AS event_time,
                 CURRENT_TIMESTAMP AS ingestion_time
             FROM default_catalog.default_database.{source_table}

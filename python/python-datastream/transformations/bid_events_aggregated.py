@@ -1,39 +1,31 @@
 from transformations.base_transformer import BaseTransformer
-from typing import Dict
+from typing import Dict, List, Optional
 
 class BidEventsAggregatedTransformer(BaseTransformer):
     def get_sink_schema(self) -> Dict[str, str]:
         return {
             "window_start": "TIMESTAMP(3)",
             "window_end": "TIMESTAMP(3)",
-            "city_id": "INT",
             "platform": "STRING",
-            "total_bids": "BIGINT",
+            "event_count": "BIGINT",
             "unique_users": "BIGINT",
-            "avg_bid_amount": "DOUBLE",
-            "max_bid_amount": "DOUBLE",
-            "min_bid_amount": "DOUBLE"
+            "unique_sessions": "BIGINT"
         }
     
-    def get_partition_by(self):
-        return ["DATE(window_start)"]
+    def get_partition_by(self) -> Optional[List[str]]:
+        return ["platform"]  # Partition by platform
     
-    def get_transformation_sql(self, source_table: str, sink_table: str) -> str:
+    def get_transformation_sql(self, source_table: str) -> str:
         return f"""
-            INSERT INTO {sink_table}
             SELECT
-                TUMBLE_START(TO_TIMESTAMP_LTZ(timestamp_ms, 3), INTERVAL '1' HOUR) AS window_start,
-                TUMBLE_END(TO_TIMESTAMP_LTZ(timestamp_ms, 3), INTERVAL '1' HOUR) AS window_end,
-                city_id,
+                TUMBLE_START(TO_TIMESTAMP_LTZ(timestamp_ms, 3), INTERVAL '5' MINUTE) AS window_start,
+                TUMBLE_END(TO_TIMESTAMP_LTZ(timestamp_ms, 3), INTERVAL '5' MINUTE) AS window_end,
                 platform,
-                COUNT(*) AS total_bids,
+                COUNT(*) AS event_count,
                 COUNT(DISTINCT user_id) AS unique_users,
-                AVG(bid_amount) AS avg_bid_amount,
-                MAX(bid_amount) AS max_bid_amount,
-                MIN(bid_amount) AS min_bid_amount
+                COUNT(DISTINCT session_id) AS unique_sessions
             FROM default_catalog.default_database.{source_table}
             GROUP BY
-                TUMBLE(TO_TIMESTAMP_LTZ(timestamp_ms, 3), INTERVAL '1' HOUR),
-                city_id,
-                platform
+                platform,
+                TUMBLE(TO_TIMESTAMP_LTZ(timestamp_ms, 3), INTERVAL '5' MINUTE)
         """
