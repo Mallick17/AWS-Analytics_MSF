@@ -138,30 +138,34 @@ except Exception as e:
 print("[PHASE 3] COMPLETE")
 
 # ================================================================================
-# PHASE 4: LOAD topics.yaml - USING SCRIPT_DIR
+# PHASE 4: LOAD CONFIGURATION
 # ================================================================================
-print("\n[PHASE 4] LOADING topics.yaml")
+print("\n[PHASE 4] LOADING CONFIGURATION")
+
 try:
-    topics_path = os.path.join(SCRIPT_DIR, "config", "topics.yaml")
-    print(f"  Loading: {topics_path}")
+    from common.config import Config, FLINK_CONFIG, ICEBERG_CONFIG
+    print("  ✓ Config module imported")
     
-    with open(topics_path, 'r') as f:
-        topics_config = yaml.safe_load(f)
+    # Initialize configuration loader
+    config_dir = os.path.join(SCRIPT_DIR, "config")
+    print(f"  Config directory: {config_dir}")
     
-    print("  YAML parsed successfully")
+    config = Config(config_dir=config_dir)
+    print("  ✓ Configuration loaded successfully")
     
-    kafka_global = topics_config.get('kafka', {})
-    print(f"  Kafka servers: {kafka_global.get('bootstrap_servers', 'MISSING')[:50]}...")
+    # Get Kafka configuration
+    kafka_config = config.get_kafka_config()
+    print(f"  ✓ Kafka bootstrap servers: {kafka_config.get('bootstrap_servers', 'MISSING')[:50]}...")
     
-    enabled_topics = [name for name, config in topics_config.get('topics', {}).items() 
-                      if config.get('enabled', False)]
-    print(f"  Enabled topics: {enabled_topics}")
+    # Get enabled topics
+    enabled_topics = config.get_enabled_topics()
+    print(f"  ✓ Enabled topics: {enabled_topics}")
     
     if not enabled_topics:
-        print("WARNING: No enabled topics found!")
+        print("  WARNING: No enabled topics found!")
     
 except Exception as e:
-    print(f"FATAL: YAML LOAD FAILED: {e}", file=sys.stderr)
+    print(f"FATAL: CONFIGURATION LOAD FAILED: {e}", file=sys.stderr)
     import traceback
     traceback.print_exc(file=sys.stderr)
     sys.exit(1)
@@ -172,16 +176,21 @@ print("[PHASE 4] COMPLETE")
 # PHASE 5: FLINK TABLE ENVIRONMENT
 # ================================================================================
 print("\n[PHASE 5] FLINK TABLE ENVIRONMENT")
+
 try:
     env_settings = EnvironmentSettings.in_streaming_mode()
     table_env = TableEnvironment.create(env_settings)
-    print("  TableEnvironment created")
+    print("  ✓ TableEnvironment created")
     
-    config = table_env.get_config().get_configuration()
-    config.set_string("table.exec.resource.default-parallelism", "1")
-    config.set_string("execution.checkpointing.interval", "60s")
-    config.set_string("execution.checkpointing.mode", "EXACTLY_ONCE")
-    print("  Flink config applied")
+    # Apply Flink configuration
+    flink_config = table_env.get_config().get_configuration()
+    flink_config.set_string("table.exec.resource.default-parallelism", FLINK_CONFIG.get("parallelism", "1"))
+    flink_config.set_string("execution.checkpointing.interval", FLINK_CONFIG.get("checkpointing_interval", "60s"))
+    flink_config.set_string("execution.checkpointing.mode", FLINK_CONFIG.get("checkpointing_mode", "EXACTLY_ONCE"))
+    print("  ✓ Flink configuration applied:")
+    print(f"    - Parallelism: {FLINK_CONFIG.get('parallelism')}")
+    print(f"    - Checkpointing interval: {FLINK_CONFIG.get('checkpointing_interval')}")
+    print(f"    - Checkpointing mode: {FLINK_CONFIG.get('checkpointing_mode')}")
     
 except Exception as e:
     print(f"FATAL: FLINK ENV FAILED: {e}", file=sys.stderr)
@@ -195,62 +204,34 @@ print("[PHASE 5] COMPLETE")
 # PHASE 6: S3 TABLES CATALOG
 # ================================================================================
 print("\n[PHASE 6] S3 TABLES CATALOG")
-s3tables_arn = os.getenv("S3_WAREHOUSE", "arn:aws:s3tables:ap-south-1:508351649560:bucket/rt-testing-cdc-bucket")
-namespace = os.getenv("ICEBERG_NAMESPACE", "analytics")
 
-print(f"  S3 Tables ARN: {s3tables_arn}")
-print(f"  Namespace: {namespace}")
-
-# Step 1: Create Catalog (without IF NOT EXISTS)
 try:
-    print("  Creating S3 Tables catalog...")
-    table_env.execute_sql(f"""
-        CREATE CATALOG s3_tables WITH (
-            'type' = 'iceberg',
-            'catalog-impl' = 'software.amazon.s3tables.iceberg.S3TablesCatalog',
-            'warehouse' = '{s3tables_arn}',
-            'region' = 'ap-south-1'
-        )
-    """)
-    print("  Catalog created successfully")
-except Exception as e:
-    error_msg = str(e).lower()
-    if "already exists" in error_msg or "catalog s3_tables exists" in error_msg:
-        print("  Catalog already exists (OK)")
-    else:
-        print(f"  Warning during catalog creation: {e}")
-        # Continue anyway - catalog might exist
-
-# Step 2: Use Catalog
-try:
-    table_env.use_catalog("s3_tables")
-    print("  Switched to s3_tables catalog")
-except Exception as e:
-    print(f"FATAL: Cannot use catalog s3_tables: {e}", file=sys.stderr)
+    from common.catalog_manager import CatalogManager
+    print("  ✓ CatalogManager imported")
+except ImportError as e:
+    print(f"FATAL: Cannot import CatalogManager: {e}", file=sys.stderr)
     import traceback
     traceback.print_exc(file=sys.stderr)
     sys.exit(1)
 
-# Step 3: Create Database (without IF NOT EXISTS)
-try:
-    print(f"  Creating database {namespace}...")
-    table_env.execute_sql(f"CREATE DATABASE {namespace}")
-    print(f"  Database {namespace} created successfully")
-except Exception as e:
-    error_msg = str(e).lower()
-    if "already exists" in error_msg or f"database {namespace} exists" in error_msg:
-        print(f"  Database {namespace} already exists (OK)")
-    else:
-        print(f"  Warning during database creation: {e}")
-        # Continue anyway - database might exist
+# Use ICEBERG_CONFIG from config.py (with environment variable overrides)
+iceberg_config = {
+    "warehouse": os.getenv("S3_WAREHOUSE", ICEBERG_CONFIG["warehouse"]),
+    "region": os.getenv("AWS_REGION", ICEBERG_CONFIG["region"]),
+    "namespace": os.getenv("ICEBERG_NAMESPACE", ICEBERG_CONFIG["namespace"])
+}
 
-# Step 4: Use Database
+print(f"  Iceberg Configuration:")
+print(f"    Warehouse: {iceberg_config['warehouse']}")
+print(f"    Region: {iceberg_config['region']}")
+print(f"    Namespace: {iceberg_config['namespace']}")
+
+# Create and initialize catalog using CatalogManager
 try:
-    table_env.use_database(namespace)
-    print(f"  Switched to database {namespace}")
-    print("  S3 Tables catalog ready")
+    catalog_manager = CatalogManager(table_env, iceberg_config)
+    catalog_manager.create_catalog()
 except Exception as e:
-    print(f"FATAL: Cannot use database {namespace}: {e}", file=sys.stderr)
+    print(f"FATAL: S3 TABLES CATALOG SETUP FAILED: {e}", file=sys.stderr)
     import traceback
     traceback.print_exc(file=sys.stderr)
     sys.exit(1)
@@ -264,16 +245,21 @@ print("\n[PHASE 7] PROCESSING TOPICS")
 pipelines_created = 0
 table_results = []
 
-kafka_global = topics_config.get('kafka', {})
+# Get catalog and namespace from catalog_manager
+catalog_name = catalog_manager.get_catalog_name()
+namespace = catalog_manager.get_namespace()
 
-for topic_name, topic_config in topics_config.get('topics', {}).items():
-    if not topic_config.get('enabled', False):
-        print(f"  Skipping disabled topic: {topic_name}")
-        continue
-        
+# Get Kafka global config from Config object
+kafka_global = config.get_kafka_config()
+
+# Process each enabled topic
+for topic_name in enabled_topics:
     print(f"\n  PROCESSING TOPIC: {topic_name}")
     
     try:
+        # Get topic-specific configuration
+        topic_config = config.get_topic_config(topic_name)
+        
         # Step 1: Create Kafka source table
         kafka_table = f"kafka_{topic_name.replace('-', '_')}"
         
@@ -285,13 +271,14 @@ for topic_name, topic_config in topics_config.get('topics', {}).items():
         table_env.use_catalog("default_catalog")
         table_env.use_database("default_database")
         
+        # Build Kafka DDL
         kafka_ddl = f"""
             CREATE TABLE {kafka_table} (
                 {', '.join(schema_cols)}
             ) WITH (
                 'connector' = 'kafka',
                 'topic' = '{topic_name}',
-                'properties.bootstrap.servers' = '{kafka_global.get("bootstrap_servers", "MISSING")}',
+                'properties.bootstrap.servers' = '{kafka_global.get("bootstrap_servers")}',
                 'properties.group.id' = '{topic_config.get("kafka_group_id", "flink-default")}',
                 'scan.startup.mode' = '{topic_config.get("scan_mode", "latest-offset")}',
                 'format' = '{topic_config.get("format", "json")}',
@@ -307,40 +294,41 @@ for topic_name, topic_config in topics_config.get('topics', {}).items():
         print("    Creating Kafka source table...")
         try:
             table_env.execute_sql(kafka_ddl)
-            print(f"    Kafka source created: {kafka_table}")
+            print(f"    ✓ Kafka source created: {kafka_table}")
         except Exception as e:
             error_msg = str(e).lower()
             if "already exists" in error_msg or f"table {kafka_table} exists" in error_msg:
-                print(f"    Kafka source already exists: {kafka_table}")
+                print(f"    ✓ Kafka source already exists: {kafka_table}")
             else:
                 raise
         
         # Step 2: Create Iceberg sink table
-        table_env.use_catalog("s3_tables")
+        table_env.use_catalog(catalog_name)
         table_env.use_database(namespace)
         
         sink_table = topic_config.get('sink', {}).get('table_name', f"{topic_name}_sink")
         sink_schema = topic_config.get('sink', {}).get('schema', [])
         sink_cols = [f"`{field['name']}` {field['type']}" for field in sink_schema]
         
+        # Use ICEBERG_CONFIG for table properties
         sink_ddl = f"""
             CREATE TABLE {sink_table} (
                 {', '.join(sink_cols)}
             ) WITH (
-                'format-version' = '2',
-                'write.format.default' = 'parquet',
-                'write.parquet.compression-codec' = 'snappy'
+                'format-version' = '{ICEBERG_CONFIG["format_version"]}',
+                'write.format.default' = '{ICEBERG_CONFIG["write_format"]}',
+                'write.parquet.compression-codec' = '{ICEBERG_CONFIG["compression_codec"]}'
             )
         """
         
         print("    Creating Iceberg sink table...")
         try:
             table_env.execute_sql(sink_ddl)
-            print(f"    Sink table created: {sink_table}")
+            print(f"    ✓ Sink table created: {sink_table}")
         except Exception as e:
             error_msg = str(e).lower()
             if "already exists" in error_msg or f"table {sink_table} exists" in error_msg:
-                print(f"    Sink table already exists: {sink_table}")
+                print(f"    ✓ Sink table already exists: {sink_table}")
             else:
                 raise
         
@@ -369,7 +357,7 @@ for topic_name, topic_config in topics_config.get('topics', {}).items():
         select_clause = ",\n                ".join(select_parts)
         
         insert_sql = f"""
-            INSERT INTO `s3_tables`.`{namespace}`.`{sink_table}`
+            INSERT INTO `{catalog_name}`.`{namespace}`.`{sink_table}`
             SELECT
                 {select_clause}
             FROM `default_catalog`.`default_database`.`{kafka_table}`
