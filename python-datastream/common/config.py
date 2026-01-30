@@ -23,9 +23,9 @@ FLINK_CONFIG = {
 # GLOBAL ICEBERG CONFIGURATION
 # ==================================================================================
 ICEBERG_CONFIG = {
-    "warehouse": "s3://s3-tables-bucket-rt-testing/s3tablesbucket",
+    "warehouse": "arn:aws:s3tables:ap-south-1:508351649560:bucket/rt-testing-cdc-bucket",
     "region": "ap-south-1",
-    "namespace": "default",
+    "namespace": "analytics",
     "format_version": "2",
     "write_format": "parquet",
     "compression_codec": "snappy"
