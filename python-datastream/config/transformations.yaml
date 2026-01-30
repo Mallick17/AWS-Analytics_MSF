@@ -15,6 +15,14 @@ transformations:
     description: "Transforms raw bid events with timestamp conversion"
 
   # =================================================================================
+  # ✅ TRANSFORMATION 2: USER EVENTS ENRICHED (New Transformation)
+  # =================================================================================
+  user_events_enriched:
+    class: "UserEventsEnrichedTransformer"
+    module: "transformations.user_events_enriched"
+    description: "Enriches user events with computed fields and timestamp conversion"
+
+  # =================================================================================
   # 🔖 ADD YOUR NEW TRANSFORMATIONS HERE
   # =================================================================================
   # Example: User Events Processing

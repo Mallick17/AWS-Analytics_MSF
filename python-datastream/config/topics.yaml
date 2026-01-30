@@ -64,37 +64,50 @@ topics:
     transformation: "bid_events_raw"
 
   # =================================================================================
-  # 🔖 ADD YOUR NEW TOPICS HERE
+  # ✅ TOPIC 2: USER EVENTS (New Topic)
   # =================================================================================
-  # Example: User Activity Events
-  # user-activity:
-  #   enabled: false  # Set to true to activate
-  #   kafka_group_id: "flink-user-activity-v1"
-  #   scan_mode: "latest-offset"
-  #   format: "json"
-  #   
-  #   source_schema:
-  #     - name: "user_id"
-  #       type: "BIGINT"
-  #     - name: "activity_type"
-  #       type: "STRING"
-  #     - name: "page_url"
-  #       type: "STRING"
-  #     - name: "timestamp_ms"
-  #       type: "BIGINT"
-  #   
-  #   sink:
-  #     table_name: "user_activities"
-  #     schema:
-  #       - name: "user_id"
-  #         type: "BIGINT"
-  #       - name: "activity_type"
-  #         type: "STRING"
-  #       - name: "page_url"
-  #         type: "STRING"
-  #       - name: "activity_time"
-  #         type: "TIMESTAMP(3)"
-  #       - name: "ingestion_time"
-  #         type: "TIMESTAMP(3)"
-  #   
-  #   transformation: "user_events_processed"
+  user-events:
+    enabled: true
+    kafka_group_id: "flink-user-events-v1"
+    scan_mode: "earliest-offset"
+    format: "json"
+    
+    # Source Schema (Kafka Message Structure)
+    source_schema:
+      - name: "event_type"
+        type: "STRING"
+      - name: "user_id"
+        type: "BIGINT"
+      - name: "page_url"
+        type: "STRING"
+      - name: "device_type"
+        type: "STRING"
+      - name: "session_id"
+        type: "STRING"
+      - name: "timestamp_ms"
+        type: "BIGINT"
+    
+    # Sink Configuration (Iceberg Table)
+    sink:
+      table_name: "user_activities"
+      # Sink Schema (Transformed Output)
+      schema:
+        - name: "event_type"
+          type: "STRING"
+        - name: "user_id"
+          type: "BIGINT"
+        - name: "page_url"
+          type: "STRING"
+        - name: "device_type"
+          type: "STRING"
+        - name: "session_id"
+          type: "STRING"
+        - name: "is_mobile"
+          type: "BOOLEAN"
+        - name: "event_time"
+          type: "TIMESTAMP(3)"
+        - name: "ingestion_time"
+          type: "TIMESTAMP(3)"
+    
+    # Transformation to Apply
+    transformation: "user_events_enriched"
