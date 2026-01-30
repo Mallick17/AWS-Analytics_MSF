@@ -107,9 +107,10 @@ FLINK_CONFIG = {
 
 # Iceberg catalog configuration
 ICEBERG_CONFIG = {
-    "warehouse": "arn:aws:s3tables:ap-south-1:149815625933:bucket/python-saren",
-    "namespace": "sink",
+    "warehouse": "arn:aws:s3tables:ap-south-1:508351649560:bucket/rt-testing-cdc-bucket",
+    "namespace": "analytics",
     "format_version": "2",
     "write_format": "parquet",
-    "compression_codec": "snappy"
+    "compression_codec": "snappy",
+    "region": "ap-south-1"
 }

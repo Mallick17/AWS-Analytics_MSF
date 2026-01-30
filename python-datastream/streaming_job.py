@@ -208,7 +208,8 @@ try:
         CREATE CATALOG s3_tables WITH (
             'type' = 'iceberg',
             'catalog-impl' = 'software.amazon.s3tables.iceberg.S3TablesCatalog',
-            'warehouse' = '{s3tables_arn}'
+            'warehouse' = '{s3tables_arn}',
+            'region' = 'ap-south-1'
         )
     """)
     print("  Catalog created successfully")
