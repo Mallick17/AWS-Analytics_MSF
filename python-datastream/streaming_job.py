@@ -242,8 +242,33 @@ print("[PHASE 6] COMPLETE")
 # PHASE 7: PROCESS ENABLED TOPICS - CREATE PIPELINES
 # ================================================================================
 print("\n[PHASE 7] PROCESSING TOPICS")
-pipelines_created = 0
-table_results = []
+
+# Import modular components
+try:
+    from common.kafka_sources import KafkaSourceCreator
+    from common.iceberg_sinks import IcebergSinkCreator
+    from common.utils import load_and_instantiate_transformer, validate_topic_config
+    print("  ✓ Modular components imported")
+except ImportError as e:
+    print(f"FATAL: Cannot import modular components: {e}", file=sys.stderr)
+    import traceback
+    traceback.print_exc(file=sys.stderr)
+    sys.exit(1)
+
+# Load transformations registry
+try:
+    transformations_registry = config.get_transformations_config()
+    print(f"  ✓ Loaded {len(transformations_registry)} transformation(s):")
+    for trans_name in transformations_registry:
+        trans_config = transformations_registry[trans_name]
+        print(f"    • {trans_name}")
+        print(f"        Class: {trans_config.get('class', 'MISSING')}")
+        print(f"        Module: {trans_config.get('module', 'MISSING')}")
+except Exception as e:
+    print(f"FATAL: Cannot load transformations registry: {e}", file=sys.stderr)
+    import traceback
+    traceback.print_exc(file=sys.stderr)
+    sys.exit(1)
 
 # Get catalog and namespace from catalog_manager
 catalog_name = catalog_manager.get_catalog_name()
@@ -252,137 +277,131 @@ namespace = catalog_manager.get_namespace()
 # Get Kafka global config from Config object
 kafka_global = config.get_kafka_config()
 
+# Initialize modular creators (reusable across all topics)
+print("\n  Initializing modular components:")
+kafka_creator = KafkaSourceCreator(table_env, kafka_global)
+print("    ✓ KafkaSourceCreator initialized")
+
+iceberg_creator = IcebergSinkCreator(table_env, catalog_manager, ICEBERG_CONFIG)
+print("    ✓ IcebergSinkCreator initialized")
+
+# Track pipelines
+pipelines_created = 0
+table_results = []
+
 # Process each enabled topic
 for topic_name in enabled_topics:
-    print(f"\n  PROCESSING TOPIC: {topic_name}")
+    print(f"\n  {'=' * 80}")
+    print(f"  PROCESSING TOPIC: {topic_name}")
+    print(f"  {'=' * 80}")
     
     try:
         # Get topic-specific configuration
         topic_config = config.get_topic_config(topic_name)
         
-        # Step 1: Create Kafka source table
-        kafka_table = f"kafka_{topic_name.replace('-', '_')}"
+        # Validate topic configuration has all required fields
+        validate_topic_config(topic_config, topic_name)
         
-        source_schema = topic_config.get('source_schema', [])
-        schema_cols = [f"`{field['name']}` {field['type']}" for field in source_schema]
-        print(f"    Source schema: {len(source_schema)} fields")
+        # ========================================================================
+        # STEP 1: Create Kafka Source Table (using KafkaSourceCreator)
+        # ========================================================================
+        print("\n  [STEP 1] Creating Kafka Source")
+        kafka_table = kafka_creator.create_source(topic_name, topic_config)
         
-        # Switch to default catalog for Kafka table
-        table_env.use_catalog("default_catalog")
-        table_env.use_database("default_database")
+        # ========================================================================
+        # STEP 2: Create Iceberg Sink Table (using IcebergSinkCreator)
+        # ========================================================================
+        print("\n  [STEP 2] Creating Iceberg Sink")
+        sink_table = iceberg_creator.create_sink(topic_config)
         
-        # Build Kafka DDL
-        kafka_ddl = f"""
-            CREATE TABLE {kafka_table} (
-                {', '.join(schema_cols)}
-            ) WITH (
-                'connector' = 'kafka',
-                'topic' = '{topic_name}',
-                'properties.bootstrap.servers' = '{kafka_global.get("bootstrap_servers")}',
-                'properties.group.id' = '{topic_config.get("kafka_group_id", "flink-default")}',
-                'scan.startup.mode' = '{topic_config.get("scan_mode", "latest-offset")}',
-                'format' = '{topic_config.get("format", "json")}',
-                'json.fail-on-missing-field' = 'false',
-                'json.ignore-parse-errors' = 'true',
-                'properties.security.protocol' = '{kafka_global.get("security", {}).get("protocol", "SASL_SSL")}',
-                'properties.sasl.mechanism' = '{kafka_global.get("security", {}).get("sasl_mechanism", "AWS_MSK_IAM")}',
-                'properties.sasl.jaas.config' = '{kafka_global.get("security", {}).get("sasl_jaas_config", "software.amazon.msk.auth.iam.IAMLoginModule required;")}',
-                'properties.sasl.client.callback.handler.class' = '{kafka_global.get("security", {}).get("sasl_callback_handler", "software.amazon.msk.auth.iam.IAMClientCallbackHandler")}'
+        # ========================================================================
+        # STEP 3: Load and Execute Transformer (using modular transformer classes)
+        # ========================================================================
+        print("\n  [STEP 3] Loading Transformation")
+        
+        # Get transformation name from topic config
+        transformation_name = topic_config.get('transformation')
+        if not transformation_name:
+            raise ValueError(
+                f"No transformation specified for topic '{topic_name}'. "
+                f"Add 'transformation: <name>' to topic config in topics.yaml"
             )
-        """
         
-        print("    Creating Kafka source table...")
-        try:
-            table_env.execute_sql(kafka_ddl)
-            print(f"    ✓ Kafka source created: {kafka_table}")
-        except Exception as e:
-            error_msg = str(e).lower()
-            if "already exists" in error_msg or f"table {kafka_table} exists" in error_msg:
-                print(f"    ✓ Kafka source already exists: {kafka_table}")
-            else:
-                raise
+        # Load and instantiate transformer using utils
+        transformer = load_and_instantiate_transformer(
+            transformation_name,
+            transformations_registry,
+            topic_config
+        )
         
-        # Step 2: Create Iceberg sink table
-        table_env.use_catalog(catalog_name)
-        table_env.use_database(namespace)
+        # Get transformation SQL from transformer
+        # Provide fully qualified source table name
+        source_table_fqn = f"`default_catalog`.`default_database`.`{kafka_table}`"
         
-        sink_table = topic_config.get('sink', {}).get('table_name', f"{topic_name}_sink")
-        sink_schema = topic_config.get('sink', {}).get('schema', [])
-        sink_cols = [f"`{field['name']}` {field['type']}" for field in sink_schema]
+        print(f"    Generating transformation SQL...")
+        transformation_sql = transformer.get_transformation_sql(source_table_fqn)
+        print(f"    ✓ Transformation SQL generated")
         
-        # Use ICEBERG_CONFIG for table properties
-        sink_ddl = f"""
-            CREATE TABLE {sink_table} (
-                {', '.join(sink_cols)}
-            ) WITH (
-                'format-version' = '{ICEBERG_CONFIG["format_version"]}',
-                'write.format.default' = '{ICEBERG_CONFIG["write_format"]}',
-                'write.parquet.compression-codec' = '{ICEBERG_CONFIG["compression_codec"]}'
-            )
-        """
+        # Optional: Print SQL preview for debugging (first 10 lines)
+        sql_lines = transformation_sql.strip().split('\n')
+        if len(sql_lines) <= 10:
+            print(f"    SQL Preview:")
+            for line in sql_lines:
+                print(f"      {line.strip()}")
+        else:
+            print(f"    SQL Preview (first 10 lines):")
+            for line in sql_lines[:10]:
+                print(f"      {line.strip()}")
+            print(f"      ... ({len(sql_lines) - 10} more lines)")
         
-        print("    Creating Iceberg sink table...")
-        try:
-            table_env.execute_sql(sink_ddl)
-            print(f"    ✓ Sink table created: {sink_table}")
-        except Exception as e:
-            error_msg = str(e).lower()
-            if "already exists" in error_msg or f"table {sink_table} exists" in error_msg:
-                print(f"    ✓ Sink table already exists: {sink_table}")
-            else:
-                raise
+        # ========================================================================
+        # STEP 4: Build and Execute INSERT Statement
+        # ========================================================================
+        print("\n  [STEP 4] Executing Pipeline")
         
-        # Step 3: Build INSERT statement with field mapping
-        source_field_names = [field["name"] for field in source_schema]
-        
-        select_parts = []
-        for sink_field in sink_schema:
-            sink_name = sink_field["name"]
-            sink_type = sink_field["type"]
-            
-            # Special handling for timestamp conversion
-            if sink_name == "event_time" and "timestamp_ms" in source_field_names:
-                select_parts.append(f"TO_TIMESTAMP_LTZ(`timestamp_ms`, 3) AS `event_time`")
-            # Special handling for ingestion timestamp
-            elif sink_name == "ingestion_time":
-                select_parts.append(f"CURRENT_TIMESTAMP AS `ingestion_time`")
-            # Direct field mapping
-            elif sink_name in source_field_names:
-                select_parts.append(f"`{sink_name}`")
-            # Field not in source - use NULL
-            else:
-                print(f"    WARNING: Sink field '{sink_name}' not in source, using NULL")
-                select_parts.append(f"CAST(NULL AS {sink_type}) AS `{sink_name}`")
-        
-        select_clause = ",\n                ".join(select_parts)
-        
+        # Build INSERT statement using transformer's SQL
         insert_sql = f"""
             INSERT INTO `{catalog_name}`.`{namespace}`.`{sink_table}`
-            SELECT
-                {select_clause}
-            FROM `default_catalog`.`default_database`.`{kafka_table}`
+            {transformation_sql}
         """
         
-        print("    INSERT SQL Statement:")
-        for line in insert_sql.strip().split('\n'):
-            print(f"      {line.strip()}")
+        print(f"    INSERT INTO: {catalog_name}.{namespace}.{sink_table}")
+        print(f"    FROM: {kafka_table}")
+        print(f"    Executing streaming pipeline...")
         
-        # Step 4: Execute the streaming pipeline
-        print(f"    Executing streaming pipeline for topic: {topic_name}...")
+        # Execute the streaming pipeline
         result = table_env.execute_sql(insert_sql)
         table_results.append((topic_name, result))
         
         pipelines_created += 1
-        print(f"    ✓ Pipeline STARTED for: {topic_name}")
+        print(f"\n    ✓ ✓ ✓ Pipeline STARTED for: {topic_name} ✓ ✓ ✓")
+        
+    except ValueError as e:
+        # Configuration or validation errors
+        print(f"\n    ✗ CONFIGURATION ERROR for topic {topic_name}:", file=sys.stderr)
+        print(f"    {e}", file=sys.stderr)
+        print(f"    Skipping this topic and continuing...\n")
+        continue
+        
+    except ImportError as e:
+        # Transformer loading errors
+        print(f"\n    ✗ TRANSFORMER LOAD ERROR for topic {topic_name}:", file=sys.stderr)
+        print(f"    {e}", file=sys.stderr)
+        print(f"    Skipping this topic and continuing...\n")
+        continue
         
     except Exception as e:
-        print(f"    ✗ ERROR processing topic {topic_name}: {e}", file=sys.stderr)
+        # Any other errors
+        print(f"\n    ✗ ERROR processing topic {topic_name}:", file=sys.stderr)
+        print(f"    {e}", file=sys.stderr)
         import traceback
         traceback.print_exc(file=sys.stderr)
-        print(f"    Continuing to next topic...")
-        continue  # Continue processing other topics
+        print(f"    Skipping this topic and continuing...\n")
+        continue
 
-print(f"\n[PHASE 7] COMPLETE - {pipelines_created} pipeline(s) created")
+print(f"\n{'=' * 100}")
+print(f"[PHASE 7] COMPLETE - {pipelines_created} pipeline(s) created")
+print(f"{'=' * 100}")
 
 # ================================================================================
 # PHASE 8: JOB STATUS AND WAITING
