@@ -13,7 +13,7 @@ from typing import Dict, Any, List
 # GLOBAL FLINK CONFIGURATION
 # ==================================================================================
 FLINK_CONFIG = {
-    "parallelism": "1",
+    "parallelism": "2",  # Changed from 1 to 2 to support multiple concurrent jobs
     "checkpointing_interval": "60s",
     "checkpointing_mode": "EXACTLY_ONCE"
 }
