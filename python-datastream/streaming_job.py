@@ -285,9 +285,16 @@ print("    ✓ KafkaSourceCreator initialized")
 iceberg_creator = IcebergSinkCreator(table_env, catalog_manager, ICEBERG_CONFIG)
 print("    ✓ IcebergSinkCreator initialized")
 
+# ================================================================================
+# ⭐ CRITICAL CHANGE: Create StatementSet for concurrent job execution
+# ================================================================================
+print("\n  ⭐ Creating StatementSet for concurrent pipeline execution")
+stmt_set = table_env.create_statement_set()
+print("    ✓ StatementSet created")
+
 # Track pipelines
 pipelines_created = 0
-table_results = []
+pipeline_info = []  # Store pipeline information for logging
 
 # Process each enabled topic
 for topic_name in enabled_topics:
@@ -355,9 +362,9 @@ for topic_name in enabled_topics:
             print(f"      ... ({len(sql_lines) - 10} more lines)")
         
         # ========================================================================
-        # STEP 4: Build and Execute INSERT Statement
+        # STEP 4: Add INSERT Statement to StatementSet (NOT execute immediately)
         # ========================================================================
-        print("\n  [STEP 4] Executing Pipeline")
+        print("\n  [STEP 4] Adding Pipeline to StatementSet")
         
         # Build INSERT statement using transformer's SQL
         insert_sql = f"""
@@ -367,14 +374,20 @@ for topic_name in enabled_topics:
         
         print(f"    INSERT INTO: {catalog_name}.{namespace}.{sink_table}")
         print(f"    FROM: {kafka_table}")
-        print(f"    Executing streaming pipeline...")
+        print(f"    Adding to statement set...")
         
-        # Execute the streaming pipeline
-        result = table_env.execute_sql(insert_sql)
-        table_results.append((topic_name, result))
+        # ⭐ KEY CHANGE: Add to StatementSet instead of executing immediately
+        stmt_set.add_insert_sql(insert_sql)
         
         pipelines_created += 1
-        print(f"\n    ✓ ✓ ✓ Pipeline STARTED for: {topic_name} ✓ ✓ ✓")
+        pipeline_info.append({
+            'topic': topic_name,
+            'source': kafka_table,
+            'sink': sink_table,
+            'transformation': transformation_name
+        })
+        
+        print(f"\n    ✓ ✓ ✓ Pipeline ADDED to StatementSet: {topic_name} ✓ ✓ ✓")
         
     except ValueError as e:
         # Configuration or validation errors
@@ -400,13 +413,13 @@ for topic_name in enabled_topics:
         continue
 
 print(f"\n{'=' * 100}")
-print(f"[PHASE 7] COMPLETE - {pipelines_created} pipeline(s) created")
+print(f"[PHASE 7] COMPLETE - {pipelines_created} pipeline(s) added to StatementSet")
 print(f"{'=' * 100}")
 
 # ================================================================================
-# PHASE 8: JOB STATUS AND WAITING
+# PHASE 8: EXECUTE ALL PIPELINES CONCURRENTLY
 # ================================================================================
-print("\n[PHASE 8] JOB STATUS")
+print("\n[PHASE 8] EXECUTING ALL PIPELINES")
 
 if pipelines_created == 0:
     print("  ✗ WARNING: No pipelines were created!")
@@ -416,34 +429,47 @@ if pipelines_created == 0:
     print("    3. Check logs above for errors")
     sys.exit(1)
 
-# Success - pipelines are running
-print(f"  ✓ SUCCESS: {pipelines_created} streaming pipeline(s) started")
-print("\n  Active Pipelines:")
-for topic_name, result in table_results:
-    print(f"    • {topic_name} → RUNNING")
+# Display pipeline summary
+print(f"  ✓ {pipelines_created} pipeline(s) ready for execution")
+print("\n  Pipeline Summary:")
+for idx, info in enumerate(pipeline_info, 1):
+    print(f"    {idx}. Topic: {info['topic']}")
+    print(f"       Source: {info['source']}")
+    print(f"       Sink: {info['sink']}")
+    print(f"       Transformation: {info['transformation']}")
+    print()
 
-print("\n  Job Lifecycle:")
-print("    • Pipelines will process data continuously")
-print("    • AWS Managed Flink handles failure recovery")
-print("    • Data flows: Kafka → Flink → S3 Tables (Iceberg)")
+# ⭐ CRITICAL: Execute all pipelines together
+print("  🚀 Executing StatementSet (all pipelines will run concurrently)...")
+print("-" * 100)
 
-# Wait for the first pipeline to complete (it never will - streaming job)
-if table_results:
-    print("\n  Entering streaming mode - job will run indefinitely...")
+try:
+    # Execute the statement set - this creates separate Flink jobs for each INSERT
+    job_result = stmt_set.execute()
+    
+    print(f"\n  ✓ ✓ ✓ ALL PIPELINES STARTED SUCCESSFULLY ✓ ✓ ✓")
+    print(f"\n  Expected Flink Jobs: {pipelines_created}")
+    print("  Each pipeline runs as a separate streaming job")
+    print("\n  Job Lifecycle:")
+    print("    • Pipelines will process data continuously")
+    print("    • AWS Managed Flink handles failure recovery")
+    print("    • Data flows: Kafka → Flink → S3 Tables (Iceberg)")
+    print("\n  To view jobs: Check Flink Dashboard in AWS Console")
     print("  To stop: Stop the Kinesis Data Analytics application")
     print("-" * 100)
     
-    try:
-        # Wait on first result - this blocks forever for streaming jobs
-        first_topic, first_result = table_results[0]
-        print(f"  Monitoring pipeline: {first_topic}")
-        first_result.wait()
-    except KeyboardInterrupt:
-        print("\n  Job interrupted by user")
-    except Exception as e:
-        print(f"\n  Pipeline execution ended: {e}")
-        import traceback
-        traceback.print_exc(file=sys.stderr)
+    print("\n  Entering streaming mode - jobs will run indefinitely...")
+    
+    # Wait for job completion (streaming jobs run forever)
+    job_result.wait()
+    
+except KeyboardInterrupt:
+    print("\n  Job interrupted by user")
+except Exception as e:
+    print(f"\n  Pipeline execution error: {e}")
+    import traceback
+    traceback.print_exc(file=sys.stderr)
+    sys.exit(1)
 
 print("\n" + "=" * 100)
 print("MODULAR PYFLINK JOB EXECUTION COMPLETE")
