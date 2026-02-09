@@ -1,9 +1,0 @@
-@namespace("com.amazonaws.services.msf.avro")
-protocol In {
-	record StockPrice {
-		string symbol;
-		float price;
-		int volume;
-		long timestamp;
-	}
-}

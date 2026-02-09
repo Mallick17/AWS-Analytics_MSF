@@ -1,9 +1,0 @@
-[
-  {
-    "PropertyGroupId": "bucket",
-    "PropertyMap": {
-      "name": "ExampleBucket",
-      "path": "output"
-    }
-  }
-]

@@ -1,9 +1,0 @@
-[
-  {
-    "PropertyGroupId": "OutputBucket",
-    "PropertyMap": {
-      "bucket.name": "<bucket-name>",
-      "bucket.path": "parquetstockprices"
-    }
-  }
-]
