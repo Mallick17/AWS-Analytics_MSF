@@ -215,11 +215,7 @@ except ImportError as e:
     sys.exit(1)
 
 # Use ICEBERG_CONFIG from config.py (with environment variable overrides)
-iceberg_config = {
-    "warehouse": os.getenv("S3_WAREHOUSE", ICEBERG_CONFIG["warehouse"]),
-    "region": os.getenv("AWS_REGION", ICEBERG_CONFIG["region"]),
-    "namespace": os.getenv("ICEBERG_NAMESPACE", ICEBERG_CONFIG["namespace"])
-}
+iceberg_config = config.get_iceberg_config()
 
 print(f"  Iceberg Configuration:")
 print(f"    Warehouse: {iceberg_config['warehouse']}")

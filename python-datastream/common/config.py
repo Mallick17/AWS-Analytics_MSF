@@ -8,6 +8,12 @@ import os
 import yaml
 from typing import Dict, Any, List
 
+# Load environment variables (from .env if present)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # dotenv is optional, env vars can be set manually
 
 # ==================================================================================
 # GLOBAL FLINK CONFIGURATION
@@ -79,12 +85,22 @@ class Config:
             raise ValueError("Transformations config file is empty")
     
     def get_kafka_config(self) -> Dict[str, Any]:
-        """Get Kafka connection configuration.
+        """Get Kafka connection configuration with environment overrides."""
+        kafka_config = self._topics_data.get('kafka', {}).copy()
         
-        Returns:
-            Dictionary containing Kafka bootstrap servers and security settings
-        """
-        return self._topics_data.get('kafka', {})
+        # Check if running locally
+        if self.is_local_env():
+            print("  Overriding Kafka config for local environment")
+            # Override with local defaults or env vars
+            BootstrapServers = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:29092") # Default for Docker
+            kafka_config["bootstrap_servers"] = BootstrapServers
+            
+            # Remove IAM auth for local
+            kafka_config["security"] = {
+                "protocol": "PLAINTEXT"
+            }
+            
+        return kafka_config
     
     def get_topic_config(self, topic_name: str) -> Dict[str, Any]:
         """Get configuration for a specific topic.
@@ -135,15 +151,6 @@ class Config:
         
         Returns:
             Dictionary mapping transformation names to their class/module info
-            
-        Example return:
-            {
-                'bid_events_raw': {
-                    'class': 'BidEventsRawTransformer',
-                    'module': 'transformations.bid_events_raw',
-                    'description': 'Transforms raw bid events...'
-                }
-            }
         """
         transformations = self._transformations_data.get('transformations', {})
         
@@ -177,3 +184,27 @@ class Config:
             )
         
         return transformations[transformation_name]
+
+    def get_iceberg_config(self) -> Dict[str, Any]:
+        """Get Iceberg configuration with environment overrides."""
+        # Start with default config
+        config = ICEBERG_CONFIG.copy()
+        
+        # Override with environment variables
+        warehouse = os.getenv("S3_WAREHOUSE")
+        if warehouse:
+            config["warehouse"] = warehouse
+            
+        region = os.getenv("AWS_REGION")
+        if region:
+            config["region"] = region
+            
+        namespace = os.getenv("ICEBERG_NAMESPACE")
+        if namespace:
+            config["namespace"] = namespace
+            
+        return config
+
+    def is_local_env(self) -> bool:
+        """Check if running in local environment."""
+        return os.getenv("FLINK_ENV") == "local"

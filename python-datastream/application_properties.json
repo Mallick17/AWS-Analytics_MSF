@@ -1,5 +1,9 @@
 [
   {
+    "Property": "FLINK_ENV",
+    "Value": "local"
+  },
+  {
     "PropertyGroupId": "kinesis.analytics.flink.run.options",
     "PropertyMap": {
       "python": "streaming_job.py",

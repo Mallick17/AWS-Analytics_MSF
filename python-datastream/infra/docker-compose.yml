@@ -1,0 +1,98 @@
+version: '3.8'
+
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - flink-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    depends_on:
+      - zookeeper
+    networks:
+      - flink-network
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
+  # Iceberg REST Catalog (using Tabular's image)
+  iceberg-rest:
+    image: tabulario/iceberg-rest
+    container_name: iceberg-rest
+    ports:
+      - "8181:8181"
+    environment:
+      - CATALOG_WAREHOUSE=${S3_WAREHOUSE}
+      - CATALOG_IO__IMPL=org.apache.iceberg.aws.s3.S3FileIO
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION}
+      - AWS_S3_ENDPOINT=${AWS_S3_ENDPOINT:-} # Optional if using MINIO/LocalStack, but we default to AWS
+    networks:
+      - flink-network
+
+  jobmanager:
+    image: flink:1.19-java11
+    container_name: flink-jobmanager
+    ports:
+      - "8081:8081"
+    command: jobmanager
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: jobmanager
+        state.checkpoints.dir: ${S3_WAREHOUSE}/checkpoints
+        state.savepoints.dir: ${S3_WAREHOUSE}/savepoints
+        s3.access-key: ${AWS_ACCESS_KEY_ID}
+        s3.secret-key: ${AWS_SECRET_ACCESS_KEY}
+        s3.endpoint: ${AWS_S3_ENDPOINT:-} # Only needed for Minio/LocalStack, typically empty for AWS
+    volumes:
+      - ../:/opt/flink/usrlib
+      - ./.env:/opt/flink/usrlib/.env
+    networks:
+      - flink-network
+    depends_on:
+      - kafka
+      - iceberg-rest
+
+  taskmanager:
+    image: flink:1.19-java11
+    container_name: flink-taskmanager
+    command: taskmanager
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: jobmanager
+        taskmanager.numberOfTaskSlots: 2
+        s3.access-key: ${AWS_ACCESS_KEY_ID}
+        s3.secret-key: ${AWS_SECRET_ACCESS_KEY}
+        s3.endpoint: ${AWS_S3_ENDPOINT:-}
+    volumes:
+      - ../:/opt/flink/usrlib
+      - ./.env:/opt/flink/usrlib/.env
+    networks:
+      - flink-network
+    depends_on:
+      - jobmanager
+
+networks:
+  flink-network:
+    driver: bridge
