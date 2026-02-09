@@ -55,6 +55,8 @@ services:
     ports:
       - "8081:8081"
     command: jobmanager
+    env_file:
+      - ./.env
     environment:
       - |
         FLINK_PROPERTIES=
@@ -66,7 +68,6 @@ services:
         s3.endpoint: ${AWS_S3_ENDPOINT:-} # Only needed for Minio/LocalStack, typically empty for AWS
     volumes:
       - ../:/opt/flink/usrlib
-      - ./.env:/opt/flink/usrlib/.env
     networks:
       - flink-network
     depends_on:
@@ -77,6 +78,8 @@ services:
     image: flink:1.19-java11
     container_name: flink-taskmanager
     command: taskmanager
+    env_file:
+      - ./.env
     environment:
       - |
         FLINK_PROPERTIES=
@@ -87,7 +90,6 @@ services:
         s3.endpoint: ${AWS_S3_ENDPOINT:-}
     volumes:
       - ../:/opt/flink/usrlib
-      - ./.env:/opt/flink/usrlib/.env
     networks:
       - flink-network
     depends_on:

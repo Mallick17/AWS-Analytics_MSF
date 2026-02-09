@@ -42,6 +42,7 @@ Run the pipeline locally using Docker containers for Kafka, Flink, and an Iceber
 1.  **Start Docker Containers**:
     This starts Kafka, Zookeeper, Flink JobManager/TaskManager, and the Iceberg REST Catalog.
     ```bash
+    chmod +x infra/scripts/start.sh
     ./infra/scripts/start.sh
     ```
 
