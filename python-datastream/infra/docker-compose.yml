@@ -50,7 +50,10 @@ services:
       - flink-network
 
   jobmanager:
-    image: flink:1.19-java11
+    build:
+      context: .
+      dockerfile: Dockerfile.flink-python
+    image: flink:1.19-python
     container_name: flink-jobmanager
     ports:
       - "8081:8081"
@@ -75,7 +78,10 @@ services:
       - iceberg-rest
 
   taskmanager:
-    image: flink:1.19-java11
+    build:
+      context: .
+      dockerfile: Dockerfile.flink-python
+    image: flink:1.19-python
     container_name: flink-taskmanager
     command: taskmanager
     env_file:

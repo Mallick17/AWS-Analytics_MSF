@@ -39,16 +39,19 @@ Run the pipeline locally using Docker containers for Kafka, Flink, and an Iceber
 
 ### 🐳 Step 2: Start Local Infrastructure
 
-1.  **Start Docker Containers**:
-    This starts Kafka, Zookeeper, Flink JobManager/TaskManager, and the Iceberg REST Catalog.
+1.  **Build and Start Docker Containers**:
+    This builds the custom Flink image with Python, then starts Kafka, Zookeeper, Flink JobManager/TaskManager, and the Iceberg REST Catalog.
     ```bash
     chmod +x infra/scripts/start.sh
     ./infra/scripts/start.sh
     ```
+    
+    **Note**: The first build may take 5-10 minutes as it installs Python and PyFlink in the Flink container.
 
 2.  **Verify Status**:
     Ensure all containers are in `Up` state.
     ```bash
+    chmod +x infra/scripts/health-check.sh
     ./infra/scripts/health-check.sh
     ```
 
@@ -57,6 +60,7 @@ Run the pipeline locally using Docker containers for Kafka, Flink, and an Iceber
 1.  **Create Kafka Topics**:
     This script waits for Kafka to be ready and creates `bid-events` and `user-events`.
     ```bash
+    chmod +x infra/scripts/setup_local.sh
     ./infra/scripts/setup_local.sh
     ```
 
@@ -67,6 +71,13 @@ Run the pipeline locally using Docker containers for Kafka, Flink, and an Iceber
     ```bash
     docker-compose -f infra/docker-compose.yml exec jobmanager python /opt/flink/usrlib/streaming_job.py
     ```
+    
+    **Alternative (if you encounter env variable issues)**:
+    ```bash
+    cd infra
+    docker-compose exec jobmanager python /opt/flink/usrlib/streaming_job.py
+    ```
+    
     *   *Result: You should see logs indicating the job has started and pipelines are running. It will wait for data.*
 
 ### ⚡ Step 5: Produce Test Data
