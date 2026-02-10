@@ -356,12 +356,11 @@ for topic_name in enabled_topics:
         # ========================================================================
         if IS_LOCAL_MODE:
             # For local mode, create a proper sink that matches the transformation output schema
-            # We need to create a sink with the same schema as the transformation output
             print("\n  [STEP 2] Creating Console Sink (Local Mode)")
             sink_table = f"console_sink_{topic_name.replace('-', '_')}"
             
-            # Get the output schema from the topic configuration
-            output_schema = topic_config.get('sinks', {}).get('s3_tables', {}).get('schema', {})
+            # Get the output schema from the topic configuration (correct path: sink.schema)
+            output_schema = topic_config.get('sink', {}).get('schema', [])
             if not output_schema:
                 print(f"    Warning: No output schema found for {topic_name}, using default")
                 # Use a simple schema that can handle any JSON data
@@ -375,13 +374,17 @@ for topic_name in enabled_topics:
             else:
                 # Build proper schema from the output configuration
                 schema_fields = []
-                for field_name, field_config in output_schema.items():
+                for field_config in output_schema:
                     if isinstance(field_config, dict):
+                        field_name = field_config.get('name', 'unknown')
                         field_type = field_config.get('type', 'STRING')
+                        # Convert TIMESTAMP(3) to TIMESTAMP_LTZ(3) for Flink
+                        if field_type == 'TIMESTAMP(3)':
+                            field_type = 'TIMESTAMP_LTZ(3)'
                         schema_fields.append(f"`{field_name}` {field_type}")
                     else:
-                        # Simple type specification
-                        schema_fields.append(f"`{field_name}` {field_config}")
+                        # Simple type specification (fallback)
+                        schema_fields.append(f"`data` STRING")
                 
                 schema_ddl = ",\n                        ".join(schema_fields) if schema_fields else "`data` STRING"
                 
@@ -393,6 +396,7 @@ for topic_name in enabled_topics:
                     )
                 """
             
+            print(f"    Expected schema fields: {len(schema_fields) if 'schema_fields' in locals() else 0}")
             table_env.execute_sql(sink_ddl)
             print(f"    ✓ Console sink table created: {sink_table}")
         else:

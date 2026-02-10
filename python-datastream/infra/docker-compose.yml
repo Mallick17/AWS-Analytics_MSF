@@ -185,7 +185,7 @@ services:
         echo 'Installing producer dependencies...'
         pip install -r producer/requirements.txt
         echo 'Starting modular producer for both topics...'
-        python -m producer.cli --topic both --count 100 --rate 2
+        python -m producer.cli --local --topic both --count 100 --rate 2
       "
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
