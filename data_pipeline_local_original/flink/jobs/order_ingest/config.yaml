@@ -1,0 +1,16 @@
+# Order Ingest Job Configuration
+job:
+  name: order_ingest_job
+  description: Ingest order creation events from Kafka to Iceberg
+
+source:
+  table_name: orders_source
+  topic: ${KAFKA_TOPIC_ORDERS:-orders.created.v1}
+
+sink:
+  table_name: orders
+  namespace: ${ICEBERG_NAMESPACE:-analytics}
+
+transformation:
+  add_processed_at: true
+  validate_schema: true

@@ -1,0 +1,32 @@
+# Kafka Topic Definitions
+# This file defines all Kafka topics used in the analytics platform
+
+topics:
+  - name: orders.created.v1
+    description: Order creation events (v1 schema)
+    partitions: 3
+    replication_factor: 1
+    config:
+      retention.ms: 604800000  # 7 days
+      cleanup.policy: delete
+      compression.type: lz4
+    key_schema:
+      type: string
+      description: order_id
+    value_schema:
+      type: json
+      schema_file: ../producer/schemas/order_created_v1.py
+
+# Future topics can be added here:
+# - name: orders.updated.v1
+#   description: Order update events
+#   partitions: 3
+#   replication_factor: 1
+
+ - name: orders.cancel.v1
+   description: Order cancel events
+   partitions: 3
+   replication_factor: 1
+   value_schema:
+      type: json
+      schema_file: ../producer/schemas/order_cancelled_v1.py
