@@ -1,0 +1,18 @@
+FROM flink:1.19-java11
+
+# Install Python dependencies
+RUN pip install --no-cache-dir \
+    apache-flink==1.19.0 \
+    pyyaml \
+    python-dotenv \
+    pydantic \
+    boto3
+
+# Copy pre-built JAR dependencies
+COPY target/pyflink-dependencies.jar /opt/flink/lib/
+
+# Set working directory
+WORKDIR /opt/flink
+
+# Default command (can be overridden)
+CMD ["help"]

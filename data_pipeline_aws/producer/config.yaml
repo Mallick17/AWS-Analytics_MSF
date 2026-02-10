@@ -1,0 +1,56 @@
+# Producer Configuration
+kafka:
+  bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS:-localhost:9092}
+  acks: all
+  retries: 3
+  linger_ms: 10
+  batch_size: 16384
+
+producer:
+  default_rate: 10  # events per second
+  default_count: 100  # number of events to produce
+  seed: null  # random seed for deterministic runs
+
+# Topic-specific configurations
+topics:
+  orders.created.v1:
+    currencies:
+      - USD
+      - EUR
+      - GBP
+      - INR
+    min_amount: 10.00
+    max_amount: 5000.00
+  
+  bid-events:
+    platforms:
+      - web
+      - android
+      - ios
+      - mobile
+      - desktop
+    cities:
+      - 1  # New York
+      - 2  # London
+      - 3  # Tokyo
+      - 4  # Mumbai
+      - 5  # Sydney
+  
+  user-events:
+    event_types:
+      - PAGE_VIEW
+      - BUTTON_CLICK
+      - FORM_SUBMIT
+      - SCROLL
+      - VIDEO_PLAY
+    device_types:
+      - desktop
+      - mobile
+      - tablet
+      - smartphone
+    pages:
+      - /home
+      - /products
+      - /cart
+      - /checkout
+      - /profile

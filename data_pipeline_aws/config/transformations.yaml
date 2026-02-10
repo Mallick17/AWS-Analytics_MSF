@@ -1,0 +1,31 @@
+# ==================================================================================
+# TRANSFORMATIONS CONFIGURATION
+# ==================================================================================
+# Maps transformation names to their corresponding Python transformer classes.
+# Add new mappings here when you create new transformation classes.
+# ==================================================================================
+
+transformations:
+  # =================================================================================
+  # TRANSFORMATION 1: ORDER EVENTS RAW
+  # =================================================================================
+  order_events_raw:
+    class: "OrderEventsRawTransformer"
+    module: "transformations.order_events_raw"
+    description: "Transforms raw order events with timestamp conversion"
+
+  # =================================================================================
+  # TRANSFORMATION 2: BID EVENTS ENRICHED
+  # =================================================================================
+  bid_events_enriched:
+    class: "BidEventsEnrichedTransformer"
+    module: "transformations.bid_events_enriched"
+    description: "Enriches bid events with computed fields (is_mobile) and timestamp conversion"
+
+  # =================================================================================
+  # TRANSFORMATION 3: USER EVENTS PROCESSED
+  # =================================================================================
+  user_events_processed:
+    class: "UserEventsProcessedTransformer"
+    module: "transformations.user_events_processed"
+    description: "Processes user events with device detection and timestamp conversion"

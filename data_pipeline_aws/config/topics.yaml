@@ -1,0 +1,164 @@
+# ==================================================================================
+# KAFKA TOPICS CONFIGURATION
+# ==================================================================================
+# Define all Kafka topics that should be processed by the Flink job.
+# Each topic includes schema definitions and processing parameters.
+# ==================================================================================
+
+# Global Kafka Configuration
+kafka:
+  # Local defaults (overridden by environment variables)
+  bootstrap_servers: "kafka:29092"
+  security:
+    protocol: "PLAINTEXT"  # Local: PLAINTEXT, AWS: SASL_SSL (auto-configured)
+
+# Topic Definitions
+topics:
+  # =================================================================================
+  # TOPIC 1: ORDER EVENTS
+  # =================================================================================
+  orders.created.v1:
+    enabled: true
+    kafka_group_id: "flink-orders-v1"
+    scan_mode: "earliest-offset"  # Options: earliest-offset, latest-offset
+    format: "json"
+    
+    # Source Schema (Kafka Message Structure)
+    source_schema:
+      - name: "event_id"
+        type: "STRING"
+      - name: "order_id"
+        type: "STRING"
+      - name: "user_id"
+        type: "STRING"
+      - name: "order_amount"
+        type: "DECIMAL(10, 2)"
+      - name: "currency"
+        type: "STRING"
+      - name: "order_status"
+        type: "STRING"
+      - name: "timestamp_ms"
+        type: "BIGINT"
+    
+    # Sink Configuration (Iceberg Table)
+    sink:
+      table_name: "orders"
+      # Sink Schema (Transformed Output)
+      schema:
+        - name: "event_id"
+          type: "STRING"
+        - name: "order_id"
+          type: "STRING"
+        - name: "user_id"
+          type: "STRING"
+        - name: "order_amount"
+          type: "DECIMAL(10, 2)"
+        - name: "currency"
+          type: "STRING"
+        - name: "order_status"
+          type: "STRING"
+        - name: "event_time"
+          type: "TIMESTAMP(3)"
+        - name: "ingestion_time"
+          type: "TIMESTAMP(3)"
+    
+    # Transformation to Apply
+    transformation: "order_events_raw"
+
+  # =================================================================================
+  # TOPIC 2: BID EVENTS
+  # =================================================================================
+  bid-events:
+    enabled: true
+    kafka_group_id: "flink-bids-v1"
+    scan_mode: "earliest-offset"
+    format: "json"
+    
+    # Source Schema (Kafka Message Structure)
+    source_schema:
+      - name: "event_name"
+        type: "STRING"
+      - name: "user_id"
+        type: "BIGINT"
+      - name: "city_id"
+        type: "INT"
+      - name: "platform"
+        type: "STRING"
+      - name: "session_id"
+        type: "STRING"
+      - name: "timestamp_ms"
+        type: "BIGINT"
+    
+    # Sink Configuration (Iceberg Table)
+    sink:
+      table_name: "bid_events"
+      # Sink Schema (Transformed Output)
+      schema:
+        - name: "event_name"
+          type: "STRING"
+        - name: "user_id"
+          type: "BIGINT"
+        - name: "city_id"
+          type: "INT"
+        - name: "platform"
+          type: "STRING"
+        - name: "session_id"
+          type: "STRING"
+        - name: "is_mobile"
+          type: "BOOLEAN"
+        - name: "event_time"
+          type: "TIMESTAMP(3)"
+        - name: "ingestion_time"
+          type: "TIMESTAMP(3)"
+    
+    # Transformation to Apply
+    transformation: "bid_events_enriched"
+
+  # =================================================================================
+  # TOPIC 3: USER EVENTS
+  # =================================================================================
+  user-events:
+    enabled: true
+    kafka_group_id: "flink-users-v1"
+    scan_mode: "earliest-offset"
+    format: "json"
+    
+    # Source Schema (Kafka Message Structure)
+    source_schema:
+      - name: "event_type"
+        type: "STRING"
+      - name: "user_id"
+        type: "BIGINT"
+      - name: "page_url"
+        type: "STRING"
+      - name: "device_type"
+        type: "STRING"
+      - name: "session_id"
+        type: "STRING"
+      - name: "timestamp_ms"
+        type: "BIGINT"
+    
+    # Sink Configuration (Iceberg Table)
+    sink:
+      table_name: "user_activities"
+      # Sink Schema (Transformed Output)
+      schema:
+        - name: "event_type"
+          type: "STRING"
+        - name: "user_id"
+          type: "BIGINT"
+        - name: "page_url"
+          type: "STRING"
+        - name: "device_type"
+          type: "STRING"
+        - name: "session_id"
+          type: "STRING"
+        - name: "is_mobile"
+          type: "BOOLEAN"
+        - name: "event_time"
+          type: "TIMESTAMP(3)"
+        - name: "ingestion_time"
+          type: "TIMESTAMP(3)"
+    
+    # Transformation to Apply
+    transformation: "user_events_processed"
