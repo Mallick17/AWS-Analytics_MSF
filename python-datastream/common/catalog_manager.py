@@ -41,27 +41,22 @@ class CatalogManager:
             is_local = os.getenv("FLINK_ENV") == "local"
             
             if is_local:
-                # LOCAL: Use REST Catalog (Tabular) pointing to S3
-                print("    Target: Local Development (REST Catalog)")
+                # LOCAL: Skip Iceberg catalog for local development
+                print("    Target: Local Development (Console Output)")
+                print("    Note: In local mode, data is printed to console instead of written to S3 Tables")
+                print("    For full S3 Tables testing, use AWS Managed Flink")
                 
-                # Get AWS credentials from environment (passed to container)
-                aws_access_key = os.getenv("AWS_ACCESS_KEY_ID", "")
-                aws_secret_key = os.getenv("AWS_SECRET_ACCESS_KEY", "")
-                s3_endpoint = os.getenv("AWS_S3_ENDPOINT", "")
-                
+                # Create a dummy catalog that will be used for table creation but not actual persistence
                 create_catalog_sql = f"""
                     CREATE CATALOG {self.catalog_name} WITH (
-                        'type' = 'iceberg',
-                        'catalog-type' = 'rest',
-                        'uri' = 'http://iceberg-rest:8181',
-                        'warehouse' = '{warehouse}',
-                        'io-impl' = 'org.apache.iceberg.aws.s3.S3FileIO',
-                        's3.access-key-id' = '{aws_access_key}',
-                        's3.secret-access-key' = '{aws_secret_key}',
-                        's3.region' = '{region}',
-                        's3.endpoint' = '{s3_endpoint}'
+                        'type' = 'generic_in_memory'
                     )
                 """
+                
+                # Skip catalog creation for local mode
+                print(f"    ✓ Local mode: Skipping Iceberg catalog setup")
+                return  # Early return - no catalog needed for local development
+                
             else:
                 # PRODUCTION: Use S3 Tables Catalog (AWS Managed)
                 print("    Target: AWS S3 Tables (Cloud)")

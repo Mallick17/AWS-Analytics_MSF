@@ -60,11 +60,25 @@ print(f"  Python running in: {os.getcwd()}")
 print(f"  Script located in: {SCRIPT_DIR}")
 print(f"  Python version: {sys.version}")
 
+# Detect if running in Docker with pre-installed JARs
+FLINK_LIB_DIR = "/opt/flink/lib"
+IS_DOCKER_LOCAL = os.path.exists(FLINK_LIB_DIR) and any(
+    f.endswith('.jar') and ('iceberg' in f.lower() or 'kafka' in f.lower())
+    for f in os.listdir(FLINK_LIB_DIR) if os.path.isfile(os.path.join(FLINK_LIB_DIR, f))
+)
+print(f"  Running in Docker with pre-installed JARs: {IS_DOCKER_LOCAL}")
+
 # Use SCRIPT_DIR for all file paths
-required_files = [
-    ("config/topics.yaml", os.path.join(SCRIPT_DIR, "config", "topics.yaml")),
-    ("lib/pyflink-dependencies.jar", os.path.join(SCRIPT_DIR, "lib", "pyflink-dependencies.jar"))
-]
+# In Docker local mode, pyflink-dependencies.jar is not required (JARs are in /opt/flink/lib)
+if IS_DOCKER_LOCAL:
+    required_files = [
+        ("config/topics.yaml", os.path.join(SCRIPT_DIR, "config", "topics.yaml")),
+    ]
+else:
+    required_files = [
+        ("config/topics.yaml", os.path.join(SCRIPT_DIR, "config", "topics.yaml")),
+        ("lib/pyflink-dependencies.jar", os.path.join(SCRIPT_DIR, "lib", "pyflink-dependencies.jar"))
+    ]
 
 print("\n  CHECKING REQUIRED FILES:")
 all_files_exist = True
@@ -113,27 +127,35 @@ print("[PHASE 2] COMPLETE")
 # PHASE 3: JAR INJECTION - USING SCRIPT_DIR
 # ================================================================================
 print("\n[PHASE 3] JAR INJECTION")
-try:
-    gateway = get_gateway()
-    jvm = gateway.jvm
-    print("  JVM gateway OK")
-    
-    jar_path = os.path.join(SCRIPT_DIR, "lib", "pyflink-dependencies.jar")
-    print(f"  JAR path: {jar_path}")
-    
-    if os.path.exists(jar_path):
-        jar_url = jvm.java.net.URL(f"file://{jar_path}")
-        jvm.Thread.currentThread().getContextClassLoader().addURL(jar_url)
-        print("  JAR injected successfully")
-    else:
-        print("FATAL: Dependency JAR missing - cannot continue")
-        sys.exit(1)
+
+if IS_DOCKER_LOCAL:
+    print("  Skipping JAR injection - running in Docker with pre-installed JARs")
+    print(f"  JARs available in {FLINK_LIB_DIR}:")
+    for f in sorted(os.listdir(FLINK_LIB_DIR)):
+        if f.endswith('.jar') and ('iceberg' in f.lower() or 'kafka' in f.lower()):
+            print(f"    - {f}")
+else:
+    try:
+        gateway = get_gateway()
+        jvm = gateway.jvm
+        print("  JVM gateway OK")
         
-except Exception as e:
-    print(f"FATAL: JAR INJECTION FAILED: {e}", file=sys.stderr)
-    import traceback
-    traceback.print_exc(file=sys.stderr)
-    sys.exit(1)
+        jar_path = os.path.join(SCRIPT_DIR, "lib", "pyflink-dependencies.jar")
+        print(f"  JAR path: {jar_path}")
+        
+        if os.path.exists(jar_path):
+            jar_url = jvm.java.net.URL(f"file://{jar_path}")
+            jvm.Thread.currentThread().getContextClassLoader().addURL(jar_url)
+            print("  JAR injected successfully")
+        else:
+            print("FATAL: Dependency JAR missing - cannot continue")
+            sys.exit(1)
+            
+    except Exception as e:
+        print(f"FATAL: JAR INJECTION FAILED: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+        sys.exit(1)
 
 print("[PHASE 3] COMPLETE")
 
@@ -235,6 +257,24 @@ except Exception as e:
 print("[PHASE 6] COMPLETE")
 
 # ================================================================================
+# PHASE 6.5: LOCAL MODE DETECTION
+# ================================================================================
+IS_LOCAL_MODE = os.getenv("FLINK_ENV") == "local"
+
+if IS_LOCAL_MODE:
+    print("\n[PHASE 6.5] LOCAL DEVELOPMENT MODE DETECTED")
+    print("  📍 Running in local Docker environment")
+    print("  📝 Data will be printed to console instead of S3 Tables")
+    print("  ☁️  For full S3 Tables testing, deploy to AWS Managed Flink")
+    print("  📋 This mode tests: Kafka → Flink transformations → Console output")
+else:
+    print("\n[PHASE 6.5] PRODUCTION MODE DETECTED")
+    print("  ☁️  Running in AWS Managed Flink")
+    print("  💾 Data will be written to S3 Tables (Iceberg)")
+
+print("[PHASE 6.5] COMPLETE")
+
+# ================================================================================
 # PHASE 7: PROCESS ENABLED TOPICS - CREATE PIPELINES
 # ================================================================================
 print("\n[PHASE 7] PROCESSING TOPICS")
@@ -312,10 +352,52 @@ for topic_name in enabled_topics:
         kafka_table = kafka_creator.create_source(topic_name, topic_config)
         
         # ========================================================================
-        # STEP 2: Create Iceberg Sink Table (using IcebergSinkCreator)
+        # STEP 2: Create Sink Table (Iceberg for production, Console for local)
         # ========================================================================
-        print("\n  [STEP 2] Creating Iceberg Sink")
-        sink_table = iceberg_creator.create_sink(topic_config)
+        if IS_LOCAL_MODE:
+            # For local mode, create a proper sink that matches the transformation output schema
+            # We need to create a sink with the same schema as the transformation output
+            print("\n  [STEP 2] Creating Console Sink (Local Mode)")
+            sink_table = f"console_sink_{topic_name.replace('-', '_')}"
+            
+            # Get the output schema from the topic configuration
+            output_schema = topic_config.get('sinks', {}).get('s3_tables', {}).get('schema', {})
+            if not output_schema:
+                print(f"    Warning: No output schema found for {topic_name}, using default")
+                # Use a simple schema that can handle any JSON data
+                sink_ddl = f"""
+                    CREATE TABLE `{sink_table}` (
+                        event_json STRING
+                    ) WITH (
+                        'connector' = 'print'
+                    )
+                """
+            else:
+                # Build proper schema from the output configuration
+                schema_fields = []
+                for field_name, field_config in output_schema.items():
+                    if isinstance(field_config, dict):
+                        field_type = field_config.get('type', 'STRING')
+                        schema_fields.append(f"`{field_name}` {field_type}")
+                    else:
+                        # Simple type specification
+                        schema_fields.append(f"`{field_name}` {field_config}")
+                
+                schema_ddl = ",\n                        ".join(schema_fields) if schema_fields else "`data` STRING"
+                
+                sink_ddl = f"""
+                    CREATE TABLE `{sink_table}` (
+                        {schema_ddl}
+                    ) WITH (
+                        'connector' = 'print'
+                    )
+                """
+            
+            table_env.execute_sql(sink_ddl)
+            print(f"    ✓ Console sink table created: {sink_table}")
+        else:
+            print("\n  [STEP 2] Creating Iceberg Sink (Production Mode)")
+            sink_table = iceberg_creator.create_sink(topic_config)
         
         # ========================================================================
         # STEP 3: Load and Execute Transformer (using modular transformer classes)
@@ -358,17 +440,25 @@ for topic_name in enabled_topics:
             print(f"      ... ({len(sql_lines) - 10} more lines)")
         
         # ========================================================================
-        # STEP 4: Add INSERT Statement to StatementSet (NOT execute immediately)
+        # STEP 4: Add INSERT Statement to StatementSet
         # ========================================================================
         print("\n  [STEP 4] Adding Pipeline to StatementSet")
         
-        # Build INSERT statement using transformer's SQL
-        insert_sql = f"""
-            INSERT INTO `{catalog_name}`.`{namespace}`.`{sink_table}`
-            {transformation_sql}
-        """
+        if IS_LOCAL_MODE:
+            # For local mode, use the transformation SQL directly (no conversion to STRING)
+            insert_sql = f"""
+                INSERT INTO `{sink_table}`
+                {transformation_sql}
+            """
+            print(f"    INSERT INTO: {sink_table} (console)")
+        else:
+            # Build INSERT statement using transformer's SQL
+            insert_sql = f"""
+                INSERT INTO `{catalog_name}`.`{namespace}`.`{sink_table}`
+                {transformation_sql}
+            """
+            print(f"    INSERT INTO: {catalog_name}.{namespace}.{sink_table}")
         
-        print(f"    INSERT INTO: {catalog_name}.{namespace}.{sink_table}")
         print(f"    FROM: {kafka_table}")
         print(f"    Adding to statement set...")
         
