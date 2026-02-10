@@ -50,6 +50,9 @@ Example applications in Java, Python, Scala and SQL for Amazon Managed Service f
 #### Getting Started
 - [**Getting Started**](./python/GettingStarted) - Basic PyFlink application Table API & SQL
 
+#### Production Ready Projects
+- [**Modular PyFlink Streaming (S3 Tables)**](./python-datastream-ag) - Complete production-ready PyFlink application that reads from Kafka and writes to AWS S3 Tables (Iceberg)
+
 #### Handling Python dependencies
 - [**Python Dependencies**](./python/PythonDependencies) - Managing Python dependencies in PyFlink applications using `requirements.txt`
 - [**Packaged Python Dependencies**](./python/PackagedPythonDependencies) - Managing Python dependencies packaged with the PyFlink application at build time
@@ -69,6 +72,10 @@ Example applications in Java, Python, Scala and SQL for Amazon Managed Service f
 #### Utilities
 - [**Data Generator**](./python/data-generator) - Python script for generating sample data to Kinesis Data Streams
 - [**Local Development on Apple Silicon**](./python/LocalDevelopmentOnAppleSilicon) - Setup guide for local development of Flink 1.15 on Apple Silicon Macs (not required with Flink 1.18 or later)
+
+#### Advanced Projects & Local Development
+- [**Local Data Pipeline**](./data_pipeline_local) - Complete local development environment with Kafka, Flink, and Iceberg
+- [**Python DataStream**](./python-datastream) - Alternative Python streaming implementation
 
 
 ### Scala Examples
