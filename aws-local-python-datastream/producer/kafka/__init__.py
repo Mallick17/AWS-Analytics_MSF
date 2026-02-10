@@ -1,0 +1,3 @@
+"""
+Kafka utilities package
+"""

@@ -1,0 +1,20 @@
+# Local Development Dependencies
+# Install with: pip install -r requirements.txt
+
+# Kafka client for event production
+kafka-python==2.0.2
+
+# Data generation utilities
+faker==22.0.0
+
+# CLI framework
+click==8.1.7
+
+# Data validation
+pydantic==2.5.3
+
+# Environment configuration
+python-dotenv==1.0.0
+
+# YAML configuration
+pyyaml==6.0.1

@@ -1,0 +1,209 @@
+# ==================================================================================
+# Docker Compose for Local Flink + Kafka → AWS S3 Tables (Iceberg)
+# ==================================================================================
+# This setup runs:
+# - Apache Kafka (KRaft mode) - LOCALLY in Docker
+# - Apache Flink with PyFlink - LOCALLY in Docker  
+# - Writes to AWS S3 Tables (Iceberg) - REMOTE in AWS Cloud
+#
+# Required environment variables (set in ../.env file):
+# - AWS_ACCESS_KEY_ID
+# - AWS_SECRET_ACCESS_KEY
+# - AWS_REGION
+# - S3_WAREHOUSE (ARN of S3 Tables bucket)
+#
+# Usage:
+#   cd python-datastream/infra
+#   docker-compose --env-file ../.env up -d
+# ==================================================================================
+
+services:
+  # Apache Kafka (KRaft mode - no Zookeeper) - LOCAL
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka
+    hostname: kafka
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENERS: PLAINTEXT://kafka:29092,CONTROLLER://kafka:29093,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - flink-network
+
+  # Kafka Topic Setup (init container)
+  kafka-setup:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka-setup
+    depends_on:
+      kafka:
+        condition: service_healthy
+    command: >
+      bash -c "
+        echo 'Creating Kafka topics...'
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic orders.created.v1 --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic bid-events --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic user-events --partitions 3 --replication-factor 1
+        echo 'Topics created successfully!'
+        kafka-topics --bootstrap-server kafka:29092 --list
+      "
+    networks:
+      - flink-network
+
+  # Kafka UI (optional - for debugging)
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - flink-network
+    profiles:
+      - debug
+
+  # Flink JobManager (PyFlink with S3 Tables support)
+  jobmanager:
+    build:
+      context: .
+      dockerfile: Dockerfile.flink-python
+    image: flink:1.19-python
+    container_name: flink-jobmanager
+    ports:
+      - "8081:8081"
+    command: jobmanager
+    environment:
+      # AWS credentials from .env file (for S3 Tables access)
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION:-ap-south-1}
+      # S3 Tables warehouse ARN (remote AWS)
+      - S3_WAREHOUSE=${S3_WAREHOUSE}
+      # Iceberg namespace
+      - ICEBERG_NAMESPACE=${ICEBERG_NAMESPACE:-analytics}
+      # Local Kafka bootstrap servers (inside Docker network)
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      # Flink environment
+      - FLINK_ENV=${FLINK_ENV:-local}
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: jobmanager
+        execution.checkpointing.interval: 10000
+        execution.checkpointing.mode: EXACTLY_ONCE
+        restart-strategy: fixed-delay
+        restart-strategy.fixed-delay.attempts: 3
+        restart-strategy.fixed-delay.delay: 10s
+        taskmanager.memory.process.size: 2048m
+        jobmanager.memory.process.size: 1024m
+    volumes:
+      - flink-checkpoints:/opt/flink/checkpoints
+      - ../:/opt/flink/usrlib
+    depends_on:
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8081/overview || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - flink-network
+
+  # Flink TaskManager
+  taskmanager:
+    build:
+      context: .
+      dockerfile: Dockerfile.flink-python
+    image: flink:1.19-python
+    container_name: flink-taskmanager
+    depends_on:
+      jobmanager:
+        condition: service_healthy
+    command: taskmanager
+    environment:
+      # AWS credentials from .env file (for S3 Tables access)
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION:-ap-south-1}
+      # S3 Tables warehouse ARN (remote AWS)
+      - S3_WAREHOUSE=${S3_WAREHOUSE}
+      # Iceberg namespace
+      - ICEBERG_NAMESPACE=${ICEBERG_NAMESPACE:-analytics}
+      # Local Kafka bootstrap servers (inside Docker network)
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: jobmanager
+        taskmanager.numberOfTaskSlots: 4
+        taskmanager.memory.process.size: 2048m
+    volumes:
+      - flink-checkpoints:/opt/flink/checkpoints
+      - ../:/opt/flink/usrlib
+    networks:
+      - flink-network
+
+  # Local Kafka Producer (for testing) - NEW MODULAR PRODUCER
+  producer:
+    build:
+      context: .
+      dockerfile: Dockerfile.flink-python
+    container_name: kafka-producer
+    working_dir: /opt/flink/usrlib
+    command: >
+      bash -c "
+        echo 'Waiting for Kafka to be ready...'
+        sleep 10
+        echo 'Installing producer dependencies...'
+        pip install -r producer/requirements.txt
+        echo 'Starting modular producer for both topics...'
+        python -m producer.cli --local --topic both --count 100 --rate 2
+      "
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - PYTHONPATH=/opt/flink/usrlib
+    volumes:
+      - ../:/opt/flink/usrlib
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - flink-network
+    profiles:
+      - producer
+
+volumes:
+  kafka-data:
+  flink-checkpoints:
+
+networks:
+  flink-network:
+    driver: bridge

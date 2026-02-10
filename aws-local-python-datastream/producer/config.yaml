@@ -1,0 +1,34 @@
+# Producer Configuration
+
+# Kafka Settings
+kafka:
+  # Local development (Docker)
+  local:
+    bootstrap_servers: "localhost:9092"
+    
+  # AWS MSK
+  aws:
+    bootstrap_servers:
+      - "b-1.rttestinganalyticsmsk.mbenee.c4.kafka.ap-south-1.amazonaws.com:9098"
+      - "b-2.rttestinganalyticsmsk.mbenee.c4.kafka.ap-south-1.amazonaws.com:9098"
+    region: "ap-south-1"
+
+# Topic Configuration
+topics:
+  bid-events:
+    partitions: 3
+    replication_factor: 1  # 1 for local, 2+ for production
+    
+  user-events:
+    partitions: 3
+    replication_factor: 1  # 1 for local, 2+ for production
+
+# Generator Settings
+generators:
+  bid_events:
+    user_id_range: [10000, 99999]
+    cities: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    
+  user_events:
+    user_id_range: [10000, 99999]
+    base_url: "https://example.com"
